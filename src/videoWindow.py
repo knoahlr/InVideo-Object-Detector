@@ -13,12 +13,12 @@ from pathlib import Path
 import tarfile
 import urllib
 
-sys.path.append('../')
+sys.path.append(os.path.abspath(r"../"))
 
 from utils import label_map_util
 from utils import visualization_utils as vis_util
 
-ICON = r'..\articles\atom.png'
+ICON = Path(r'..\articles\atom.png')
 
 
 class Thread(QtCore.QThread):
@@ -86,7 +86,7 @@ class VideoWindow(QMainWindow):
 
         ''' Window Properties'''
 
-        self.Icon = QtGui.QIcon(ICON)
+        self.Icon = QtGui.QIcon(str(ICON))
         self.setMinimumSize(self.sizeHint())
         self.resize(1200, 800)
         self.setWindowTitle('Multi Model Video-Object Classifier')
@@ -179,7 +179,7 @@ class VideoWindow(QMainWindow):
             self.th.terminate()
             self.th.quit()
             self.th= None
-            
+
         self.th =Thread(self.image_processor, self.videoLineEdit.text(), self.modelTimeLineEdit)
         self.th.changePixmap.connect(self.setImage)
         self.th.start()
@@ -340,7 +340,7 @@ class FrameProcessor():
         '''Categories'''
         self.PATH_TO_LABELS = os.path.join('data', 'mscoco_label_map.pbtxt')
 
-        self.label_map = label_map_util.load_labelmap(r'C:\Users\Noah Workstation\Desktop\P_PR\repo\Video_Detector\data\mscoco_label_map.pbtxt')
+        self.label_map = label_map_util.load_labelmap(r'..\data\mscoco_label_map.pbtxt')
         self.categories = label_map_util.convert_label_map_to_categories(self.label_map, max_num_classes=self.NUM_CLASSES, use_display_name=True)
         self.category_index = label_map_util.create_category_index(self.categories)
 
@@ -386,7 +386,7 @@ class FrameProcessor():
             line_thickness=8)
         return image, endTime - startTime
 
-    def filter_boxes():
+    def filter_boxes(self):
 
         pass
 
