@@ -12,6 +12,7 @@ import os, sys, time
 from pathlib import Path
 import tarfile
 import urllib
+import collections
 
 sys.path.append(os.path.abspath(r"../"))
 
@@ -29,7 +30,9 @@ class Thread(QtCore.QThread):
         
         super().__init__()
 
-        self.cap = cv2.VideoCapture(videoFilePath)
+        if self.isNumber(videoFilePath)[0]: self.cap = cv2.VideoCapture(int(videoFilePath))
+        else: self.cap = cv2.VideoCapture(videoFilePath)
+
         self.rgbImage = None
         self.convertToQtFormat = None
         self.p = None
@@ -58,6 +61,16 @@ class Thread(QtCore.QThread):
         self.changePixmap.disconnect()
         self.blockSignals(True)
         super().quit()
+
+    def isNumber(self, s):
+        ''' 
+        Implemented in validating sample calculation inputs
+        '''
+        try:
+            int(s)
+            return (True, None)
+        except Exception as e:
+            return (False, e)
 
 
 class VideoWindow(QMainWindow):
@@ -369,30 +382,54 @@ class FrameProcessor():
         # Score is shown on the result image, together with the class label.
         scores = self.detectionGraph.get_tensor_by_name('detection_scores:0')
         classes = self.detectionGraph.get_tensor_by_name('detection_classes:0')
-        num_detections = self.detectionGraph.get_tensor_by_name('num_detections:0')
+        # num_detections = self.detectionGraph.get_tensor_by_name('num_detections:0')
         # Actual detection.
         startTime = time.time()
-        (boxes, scores, classes, num_detections) = sess.run( [boxes, scores, classes, num_detections], feed_dict={image_tensor: image_expanded})
+        (boxes, scores, classes) = sess.run( [boxes, scores, classes], feed_dict={image_tensor: image_expanded})
         endTime = time.time()
         #print(( '\n\nboxes\n\n', boxes, '\n\nscores\n\n', scores ,'\n\nclasses\n\n', classes, '\n\nnum_detections\n\n', num_detections))
         # Visualization of the results of a detection.
+
+        # (boxes, scores, classes) = self.filter_boxes(0.2, np.squeeze(boxes), np.squeeze(scores), np.squeeze(classes).astype(np.int32), [1])
+        # if list(boxes):
+        #     print(scores)
+        #     vis_util.visualize_boxes_and_labels_on_image_array(
+        #         image,
+        #         boxes,
+        #         classes,
+        #         scores,
+        #         self.category_index,
+        #         use_normalized_coordinates=True,
+        #         line_thickness=8)
+
         vis_util.visualize_boxes_and_labels_on_image_array(
-            image,
-            np.squeeze(boxes),
-            np.squeeze(classes).astype(np.int32),
-            np.squeeze(scores),
-            self.category_index,
-            use_normalized_coordinates=True,
-            line_thickness=8)
+          image,
+          np.squeeze(boxes),
+          np.squeeze(classes).astype(np.int32),
+          np.squeeze(scores),
+          self.category_index,
+          use_normalized_coordinates=True,
+          line_thickness=8)
+
         return image, endTime - startTime
 
-    def filter_boxes(self):
+    def filter_boxes(self, min_score, boxes, scores, classes, categories):
 
-        pass
+        # print( '\n\nboxes\n\n', boxes, '\n\nscores\n\n', scores ,'\n\nclasses\n\n', classes)
+        """Return boxes with a confidence >= `min_score`"""
+        n = len(classes)
 
+        idxs = []
+        for i in range(n):
 
+            if classes[i] in categories and scores[i] >= min_score:
+                idxs.append(i)
+        
+        filtered_boxes = boxes[idxs, ...]
+        filtered_scores = scores[idxs, ...]
+        filtered_classes = classes[idxs, ...]
 
-
+        return filtered_boxes, filtered_scores, filtered_classes
 
 
 
