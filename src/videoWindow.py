@@ -11,6 +11,7 @@ import numpy as np
 import os, sys, time
 from pathlib import Path
 import tarfile
+import urllib
 
 sys.path.append('../')
 
@@ -72,9 +73,16 @@ class VideoWindow(QMainWindow):
         '''Fields'''
         self.args = None
         self.th = None
-        self.modelsDirPath = r"C:\Users\Noah Workstation\Desktop\P_PR\repo\Video_Detector\models"
+        self.modelsDirPath = r"..\models"
+        self.modelsDownloadPath = r"..\downloaded_models"
+        self.downloadBase = 'http://download.tensorflow.org/models/object_detection/'
         self.modelInput = None
         self.image_processor = None
+        self.error = None
+        self.createModelsDir()
+        
+
+        self.specificationsInfo = "Note: Module has to be loaded first.\n"
 
         ''' Window Properties'''
 
@@ -111,9 +119,18 @@ class VideoWindow(QMainWindow):
 
 
         ''' input labels '''
+        self.info = QLabel(self.specificationsInfo)
+        self.infoFont = self.info.font()
+        self.infoFont.setPointSize(10)
+        self.infoFont.setItalic(True)
+        self.infoFont.setFamily("Comic Sans MS")
+        self.info.setFont(self.infoFont)
+
+
         self.videoFilePath = QLabel('Path to Video')
         self.modelImportButton = QPushButton('Load Module')
         self.modelImportButton.clicked.connect(self.handleLoadModule)
+        
 
         self.videoLineEdit = QLineEdit(self.inputsFrame)
         self.modelLineEdit = QLineEdit(self.inputsFrame)
@@ -127,6 +144,7 @@ class VideoWindow(QMainWindow):
         '''run button'''
         self.runButton = QPushButton('Run')
         self.runButton.clicked.connect(self.handleRun)
+        self.runButton.setEnabled(False)
 
 
         ''' video Widget'''
@@ -135,11 +153,12 @@ class VideoWindow(QMainWindow):
         self.videoFrameLayout.addWidget(self.videoWidget)
 
         ''' Add Labels and line edits to group boxes '''
-        self.inputsFrameLayout.setWidget(0, QFormLayout.LabelRole, self.videoFilePath)
-        self.inputsFrameLayout.setWidget(0, QFormLayout.FieldRole, self.videoLineEdit)
+        self.inputsFrameLayout.addWidget(self.info)
+        self.inputsFrameLayout.setWidget(1, QFormLayout.LabelRole, self.videoFilePath)
+        self.inputsFrameLayout.setWidget(1, QFormLayout.FieldRole, self.videoLineEdit)
 
-        self.inputsFrameLayout.setWidget(1, QFormLayout.LabelRole, self.modelImportButton)
-        self.inputsFrameLayout.setWidget(1, QFormLayout.FieldRole, self.modelLineEdit)
+        self.inputsFrameLayout.setWidget(2, QFormLayout.LabelRole, self.modelImportButton)
+        self.inputsFrameLayout.setWidget(2, QFormLayout.FieldRole, self.modelLineEdit)
         self.inputsFrameLayout.addWidget(self.runButton)
 
 
@@ -160,15 +179,44 @@ class VideoWindow(QMainWindow):
             self.th.terminate()
             self.th.quit()
             self.th= None
+            
         self.th =Thread(self.image_processor, self.videoLineEdit.text(), self.modelTimeLineEdit)
         self.th.changePixmap.connect(self.setImage)
         self.th.start()
 
 
     def handleLoadModule(self):
+        
+        
+        self.modelInput = self.modelLineEdit.text()
+        pathOrLink = self.modelInput
 
-        self.loadModule()
+        _bool, fileDirName = self.pathOrLinkCheck(Path(pathOrLink))
 
+        if _bool:
+
+            self.loadModule(fileDirName)
+
+        else:
+
+            try:
+                opener = urllib.request.URLopener()
+                opener.retrieve(self.downloadBase+pathOrLink+".tar.gz", filename=self.modelsDownloadPath+os.sep+pathOrLink)
+
+                ''' Extract File '''
+                self.extractModels(self.modelsDownloadPath+os.sep+pathOrLink)
+
+                self.loadModule(Path(pathOrLink))
+            
+            except urllib.error.URLError:
+
+                self.modelLineEdit.clear()
+                self.error = ErrorWindow("Path provided is not a directory, a tarFile or a link", self.Icon)
+                self.error.show()
+                
+
+                
+#ssd_mobilenet_v1_coco_11_06_2017
     def setImage(self, image, time):
 
         self.modelTimeLineEdit.setText(str(time))
@@ -179,33 +227,35 @@ class VideoWindow(QMainWindow):
 
  
 
-    def loadModule(self):
+    def loadModule(self, fileDirName):
 
         '''
         - Looks for unpacked model, if found opens and loads inference graph into memory
         - Downloads model if link is provided, unpacks model and loads graph into memory
         '''
 
-        self.modelInput = self.modelLineEdit.text()
+        # pathOrLink = Path(self.modelInput)
 
-        pathOrLink = Path(self.modelInput)
-        _bool, fileDirName = self.pathOrLinkCheck(pathOrLink)
-        if not _bool:
-            self.modelLineEdit.clear()
-        else:
-            graphPath = Path(str(fileDirName) + os.sep + 'frozen_inference_graph.pb')
+        # _bool, fileDirName = self.pathOrLinkCheck(pathOrLink)
 
-            if 'frozen_inference_graph.pb' in os.path.basename(graphPath):
-                self.image_processor = FrameProcessor(graphPath)
+        # if not _bool: self.modelLineEdit.clear()
+        
+        graphPath = Path(self.modelsDirPath + os.sep + str(fileDirName) + os.sep + 'frozen_inference_graph.pb')
+
+        if 'frozen_inference_graph.pb' in os.path.basename(graphPath):
+            self.image_processor = FrameProcessor(graphPath)
+
+            self.runButton.setEnabled(True)
 
         
 
     def pathOrLinkCheck(self, path):
 
+
         if path.is_absolute():
             if not path.is_dir():
-                error = ErrorWindow("Path provided is not a directory", self.Icon)
-                error.show()
+                self.error = ErrorWindow("Path provided is not a directory", self.Icon)
+                self.error.show()
                 return False, None
             else:
                 if path.is_dir(): return True, path
@@ -213,29 +263,53 @@ class VideoWindow(QMainWindow):
 
                 return True, self.modelsDirPath
         else:
+
             relativePath = path
             fullPath = Path(self.modelsDirPath + os.sep + str(path))
 
-            if relativePath.is_dir():
-                return True, relativePath
+            if relativePath.is_dir(): return True, relativePath
 
-            elif fullPath.is_dir():
-                return True, fullPath
-
-            elif tarfile.is_tarfile(relativePath): 
-
-                self.extractModels(relativePath)
-                return True, self.modelsDirPath
-
-            elif tarfile.is_tarfile(fullPath): 
-                self.extractModels(fullPath)
-                return True, self.modelsDirPath
+            elif fullPath.is_dir(): return True, fullPath
 
             else:
-                error = ErrorWindow("Path provided is not a directory or a tarFile", self.Icon)
-                error.show()
-                return False, None
+                try:
+                    if tarfile.is_tarfile(relativePath):
 
+                        self.extractModels(relativePath)
+                        return True, self.modelsDirPath
+
+                except FileNotFoundError:
+
+                    # self.error = ErrorWindow("Path provided is not a directory or a tarFile", self.Icon)
+                    # self.error.show()
+
+                    return False, None
+ 
+                try:
+                    if tarfile.is_tarfile(fullPath): 
+
+                        self.extractModels(fullPath)
+                        return True, self.modelsDirPath
+
+                except FileNotFoundError:
+
+                    return False, None
+
+                    # self.error = ErrorWindow("Path provided is not a directory or a tarFile", self.Icon)
+                    # self.error.show()
+
+        
+            # self.error = ErrorWindow("Path provided is not a directory or a tarFile", self.Icon)
+            # self.error.show()
+
+            return False, None
+        
+
+    def createModelsDir(self):
+
+        if not os.path.exists(Path(self.modelsDownloadPath)): os.makedirs(Path(self.modelsDownloadPath))
+        
+        if not os.path.exists(Path(self.modelsDirPath)): os.makedirs(Path(self.modelsDirPath))
 
 
     def extractModels(self, path):
@@ -312,6 +386,9 @@ class FrameProcessor():
             line_thickness=8)
         return image, endTime - startTime
 
+    def filter_boxes():
+
+        pass
 
 
 
