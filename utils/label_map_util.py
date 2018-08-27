@@ -21,8 +21,6 @@ import tensorflow as tf
 from google.protobuf import text_format
 from protos import string_int_label_map_pb2
 import sys
-from pathlib import Path
-print(sys.path)
 
 
 def _validate_label_map(label_map):
@@ -131,7 +129,7 @@ def load_labelmap(path):
   Returns:
     a StringIntLabelMapProto
   """
-  print(Path(path), Path(path).is_file())
+
   with tf.gfile.GFile(path, 'r') as fid:
     label_map_string = fid.read()
     label_map = string_int_label_map_pb2.StringIntLabelMap()

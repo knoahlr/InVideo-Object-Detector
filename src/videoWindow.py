@@ -13,7 +13,6 @@ from pathlib import Path
 import tarfile
 
 sys.path.append('../')
-print(sys.path)
 
 from utils import label_map_util
 from utils import visualization_utils as vis_util
@@ -35,20 +34,21 @@ class Thread(QtCore.QThread):
         self.p = None
         self.frame = None
         self.frameProcessor = image_processor
+        self.session = None
 
 
     def run(self):
         
-        with tf.Session(graph=self.frameProcessor.detectionGraph) as sess:
+        with tf.Session(graph=self.frameProcessor.detectionGraph) as self.session:
 
             while True:
                 ret, self.frame = self.cap.read()
                 # print("frame", self.frame)
-                self.frame, time = self.frameProcessor.runDetection(self.frame, sess)
+                self.frame, time = self.frameProcessor.runDetection(self.frame, self.session)
 
                 self.rgbImage = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
                 self.convertToQtFormat = QtGui.QImage(self.rgbImage.data, self.rgbImage.shape[1], self.rgbImage.shape[0], QtGui.QImage.Format_RGB888)
-                self.p = self.convertToQtFormat.scaled(640, 480, QtCore.Qt.KeepAspectRatio)
+                self.p = self.convertToQtFormat.scaled(800, 640, QtCore.Qt.KeepAspectRatio)
                 self.changePixmap.emit(self.p, time)
             
     def quit(self):
@@ -80,7 +80,7 @@ class VideoWindow(QMainWindow):
 
         self.Icon = QtGui.QIcon(ICON)
         self.setMinimumSize(self.sizeHint())
-        self.resize(800, 640)
+        self.resize(1200, 800)
         self.setWindowTitle('Multi Model Video-Object Classifier')
         self.setWindowIcon(self.Icon)
 
@@ -156,6 +156,7 @@ class VideoWindow(QMainWindow):
     def handleRun(self):
 
         if self.th:
+            self.th.session.close()
             self.th.terminate()
             self.th.quit()
             self.th= None
@@ -207,6 +208,7 @@ class VideoWindow(QMainWindow):
                 error.show()
                 return False, None
             else:
+                if path.is_dir(): return True, path
                 if tarfile.is_tarfile(path):self.extractModels(path)
 
                 return True, self.modelsDirPath
