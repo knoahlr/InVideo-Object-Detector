@@ -38,17 +38,15 @@ class Thread(QtCore.QThread):
         self.p = None
         self.frame = None
         self.frameProcessor = image_processor
-        self.session = None
 
 
     def run(self):
         
-        with tf.Session(graph=self.frameProcessor.detectionGraph) as self.session:
+        with tf.Session(graph=self.frameProcessor.image_detector.detectionGraph) as self.frameProcessor.image_detector.session:
 
             while True:
                 ret, self.frame = self.cap.read()
-                # print("frame", self.frame)
-                self.frame, time = self.frameProcessor.runDetection(self.frame, self.session)
+                self.frame, time = self.frameProcessor.runDetection(self.frame, self.frameProcessor.image_detector.session)
 
                 self.rgbImage = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
                 self.convertToQtFormat = QtGui.QImage(self.rgbImage.data, self.rgbImage.shape[1], self.rgbImage.shape[0], QtGui.QImage.Format_RGB888)
@@ -346,9 +344,7 @@ class FrameProcessor():
 
         self.NUM_CLASSES = 90
 
-        self.graphPath = graphPath
-        self.detectionGraph = tf.Graph()
-        self.od_graph_def = tf.GraphDef()
+        self.image_detector = ImageDetector(graphPath)
 
         '''Categories'''
         self.PATH_TO_LABELS = os.path.join('data', 'mscoco_label_map.pbtxt')
@@ -357,35 +353,19 @@ class FrameProcessor():
         self.categories = label_map_util.convert_label_map_to_categories(self.label_map, max_num_classes=self.NUM_CLASSES, use_display_name=True)
         self.category_index = label_map_util.create_category_index(self.categories)
 
-        self.createDetectionGraph()
 
-    def createDetectionGraph(self):
 
-        '''
-        Loading frozen tensorflow model into memory
-        '''
-        with self.detectionGraph.as_default():
-            with tf.gfile.GFile(str(self.graphPath), 'rb') as fid:
-                serialized_graph = fid.read()
-                self.od_graph_def.ParseFromString(serialized_graph)
-                tf.import_graph_def(self.od_graph_def, name='')
     
     def runDetection(self, image, sess):
 
         
 
         image_expanded = np.expand_dims(image, axis=0)
-        image_tensor = self.detectionGraph.get_tensor_by_name('image_tensor:0')
-        # Each box represents a part of the image where a particular object was detected.
-        boxes = self.detectionGraph.get_tensor_by_name('detection_boxes:0')
-        # Each score represent how level of confidence for each of the objects.
-        # Score is shown on the result image, together with the class label.
-        scores = self.detectionGraph.get_tensor_by_name('detection_scores:0')
-        classes = self.detectionGraph.get_tensor_by_name('detection_classes:0')
-        # num_detections = self.detectionGraph.get_tensor_by_name('num_detections:0')
-        # Actual detection.
+
+        # # Actual detection.
         startTime = time.time()
-        (boxes, scores, classes) = sess.run( [boxes, scores, classes], feed_dict={image_tensor: image_expanded})
+        (boxes, scores, classes) = sess.run( [self.image_detector.boxes, self.image_detector.scores, self.image_detector.classes], 
+        feed_dict={self.image_detector.image_tensor: image_expanded})
         endTime = time.time()
         #print(( '\n\nboxes\n\n', boxes, '\n\nscores\n\n', scores ,'\n\nclasses\n\n', classes, '\n\nnum_detections\n\n', num_detections))
         # Visualization of the results of a detection.
@@ -402,6 +382,7 @@ class FrameProcessor():
         #         use_normalized_coordinates=True,
         #         line_thickness=8)
 
+
         vis_util.visualize_boxes_and_labels_on_image_array(
           image,
           np.squeeze(boxes),
@@ -415,7 +396,6 @@ class FrameProcessor():
 
     def filter_boxes(self, min_score, boxes, scores, classes, categories):
 
-        # print( '\n\nboxes\n\n', boxes, '\n\nscores\n\n', scores ,'\n\nclasses\n\n', classes)
         """Return boxes with a confidence >= `min_score`"""
         n = len(classes)
 
@@ -432,5 +412,53 @@ class FrameProcessor():
         return filtered_boxes, filtered_scores, filtered_classes
 
 
+class ImageDetector():
+
+    def __init__(self, graphPath):
+
+
+        '''session'''
+        self.session = None
+
+        '''Graph'''
+
+        self.graphPath = graphPath
+        self.detectionGraph = tf.Graph()
+        self.od_graph_def = tf.GraphDef()
+
+        ''' tensors '''
+
+        self.image_tensor = None
+        self.boxes = None
+        self.classes = None
+        self.scores = None
+        self.num_detections = None 
+
+        self.createDetectionGraph()
+
+    def createDetectionGraph(self):
+
+        '''
+        Loading frozen tensorflow model into memory
+        '''
+        with self.detectionGraph.as_default():
+            with tf.gfile.GFile(str(self.graphPath), 'rb') as fid:
+                serialized_graph = fid.read()
+                self.od_graph_def.ParseFromString(serialized_graph)
+                tf.import_graph_def(self.od_graph_def, name='')
+
+        self.image_tensor = self.detectionGraph.get_tensor_by_name('image_tensor:0')
+
+        # Each box represents a part of the image where a particular object was detected.
+        self.boxes = self.detectionGraph.get_tensor_by_name('detection_boxes:0')
+
+        # Each score represent how level of confidence for each of the objects.
+        # Score is shown on the result image, together with the class label.
+        self.scores = self.detectionGraph.get_tensor_by_name('detection_scores:0')
+
+        self.classes = self.detectionGraph.get_tensor_by_name('detection_classes:0')
+
+        # num_detections = self.detectionGraph.get_tensor_by_name('num_detections:0')
+        self.num_detections = self.detectionGraph.get_tensor_by_name('num_detections:0')
 
 
