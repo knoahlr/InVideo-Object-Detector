@@ -4,12 +4,15 @@ from videoWindow import VideoWindow
 
 from PyQt5.QtWidgets import QCommonStyle, QApplication
 # ICON = r'articles\atom.png'
+import os
+
+sys.path.append(os.path.abspath(r"../"))
 
 from pathlib import Path
 
 if __name__ == "__main__":
 
-    # logFile = open(Path(r"../logs/mainLog.log"), 'r')
+    # logFile = open(Path(r"../logs/mainLog.log"), 'w')
     # sys.stdout = logFile
 
     myappid = 'mycompany.myproduct.subproduct.version' # arbitrary string

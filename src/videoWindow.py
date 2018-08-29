@@ -16,69 +16,107 @@ import collections
 
 sys.path.append(os.path.abspath(r"../"))
 
-from utils import label_map_util
-from utils import visualization_utils as vis_util
+try:
+    from utils import label_map_util
+    from utils import visualization_utils as vis_util
+except ModuleNotFoundError as e:
+    print(str(e))
 
 ICON = Path(r'..\articles\atom.png')
 
+DATA = r"..\data"
 
-class Thread(QtCore.QThread):
 
-    changePixmap = QtCore.pyqtSignal(QtGui.QImage, float)
+class CheckableComboBox(QtWidgets.QComboBox):
 
-    def __init__(self, image_processor, videoFilePath, modelTimeLineEdit):
-        
+    editFilter = QtCore.pyqtSignal(dict)
+
+    def __init__(self):
+
         super().__init__()
+        self.checkedItems = None
+        self.view().pressed.connect(self.handleItemPressed)
+        self.setModel(QtGui.QStandardItemModel(self))
+        self.itemCount = 0
 
-        if self.isNumber(videoFilePath)[0]: self.cap = cv2.VideoCapture(int(videoFilePath))
-        else: self.cap = cv2.VideoCapture(videoFilePath)
-
-        self.rgbImage = None
-        self.convertToQtFormat = None
-        self.p = None
-        self.frame = None
-        self.frameProcessor = image_processor
-        self.session = None
-
-
-    def run(self):
+    def initComboBox(self, categoriesIndex):
         
-        with tf.Session(graph=self.frameProcessor.detectionGraph) as self.session:
+        elemIndex = 0
+        self.addItem("All")
+        item = self.model().item(elemIndex, 0)
+        item.setCheckState(QtCore.Qt.Unchecked)
+        elemIndex += 1
 
-            while True:
-                ret, self.frame = self.cap.read()
-                # print("frame", self.frame)
-                self.frame, time = self.frameProcessor.runDetection(self.frame, self.session)
+        for elem in categoriesIndex:
 
-                self.rgbImage = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
-                self.convertToQtFormat = QtGui.QImage(self.rgbImage.data, self.rgbImage.shape[1], self.rgbImage.shape[0], QtGui.QImage.Format_RGB888)
-                self.p = self.convertToQtFormat.scaled(800, 640, QtCore.Qt.KeepAspectRatio)
-                self.changePixmap.emit(self.p, time)
+            self.addItem(categoriesIndex[elem]["name"])
+            item = self.model().item(elemIndex, 0)
+            item.setCheckState(QtCore.Qt.Unchecked)
+            # item.setFlags()
+            elemIndex += 1
+        self.itemCount = elemIndex
+
+    def handleItemPressed(self, index):
+
+
+        item = self.model().itemFromIndex(index)
+
+
+        if item.text() == "All":
+
+            if item.checkState() == QtCore.Qt.Unchecked:
+
+                model = self.model()
+
+                for i in range(self.itemCount):
+                    print(i)
+                    item = model.item(i, 0)
+                    item.setCheckState(QtCore.Qt.Checked)
+                    # model.itemChanged(item)
+
+            else:
+
+                model = self.model()
+
+                for i in range(self.itemCount):
+                    item = model.item(i, 0)
+                    item.setCheckState(QtCore.Qt.Unchecked)
+
+
+        if item.checkState() == QtCore.Qt.Checked:
+
+            item.setCheckState(QtCore.Qt.Unchecked)
+
+        else:
+
+            item.setCheckState(QtCore.Qt.Checked)
+
+        self.getAllCheckedItems()
+        
+
+
+        
+
+    def getAllCheckedItems(self):
+
+        filter = {}
+
+        model = self.model()
+
+        for i in range(model.rowCount()):
+            item = model.item(i, 0)
+
+            if item.checkState() == QtCore.Qt.Checked: filter[i] = item.text()
+
+        self.editFilter.emit(filter)
             
-    def quit(self):
-
-        self.cap.release()
-        self.changePixmap.disconnect()
-        self.blockSignals(True)
-        super().quit()
-
-    def isNumber(self, s):
-        ''' 
-        Implemented in validating sample calculation inputs
-        '''
-        try:
-            int(s)
-            return (True, None)
-        except Exception as e:
-            return (False, e)
-
-
 class VideoWindow(QMainWindow):
 
     '''
     Window for loading in video and model for classification
     
     '''
+    pixmapChanged = QtCore.pyqtSignal()
 
     def __init__(self):
 
@@ -89,6 +127,7 @@ class VideoWindow(QMainWindow):
         self.modelsDirPath = r"..\models"
         self.modelsDownloadPath = r"..\downloaded_models"
         self.downloadBase = 'http://download.tensorflow.org/models/object_detection/'
+        self.modelLabelMap = None
         self.modelInput = None
         self.image_processor = None
         self.error = None
@@ -138,7 +177,10 @@ class VideoWindow(QMainWindow):
         self.infoFont.setItalic(True)
         self.infoFont.setFamily("Comic Sans MS")
         self.info.setFont(self.infoFont)
-
+        
+        ''' Categories Specifications '''
+        self.categoriesLabel = QLabel("Categories")
+        self.categoriesComboBox = CheckableComboBox()
 
         self.videoFilePath = QLabel('Path to Video')
         self.modelImportButton = QPushButton('Load Module')
@@ -170,8 +212,11 @@ class VideoWindow(QMainWindow):
         self.inputsFrameLayout.setWidget(1, QFormLayout.LabelRole, self.videoFilePath)
         self.inputsFrameLayout.setWidget(1, QFormLayout.FieldRole, self.videoLineEdit)
 
-        self.inputsFrameLayout.setWidget(2, QFormLayout.LabelRole, self.modelImportButton)
-        self.inputsFrameLayout.setWidget(2, QFormLayout.FieldRole, self.modelLineEdit)
+        self.inputsFrameLayout.setWidget(2, QFormLayout.LabelRole, self.categoriesLabel)
+        self.inputsFrameLayout.setWidget(2, QFormLayout.FieldRole, self.categoriesComboBox)
+
+        self.inputsFrameLayout.setWidget(3, QFormLayout.LabelRole, self.modelImportButton)
+        self.inputsFrameLayout.setWidget(3, QFormLayout.FieldRole, self.modelLineEdit)
         self.inputsFrameLayout.addWidget(self.runButton)
 
 
@@ -186,21 +231,65 @@ class VideoWindow(QMainWindow):
 
 
     def handleRun(self):
+    
+        '''
+            - Disconnect signals to stop Graph execution from being started.
+            - Wait for current Graph execution to finish
+            - Exit Thread
+                -create new image_processor QObject
+                -Load neural net to image_processor
+                -initialize image_processor session
+                -set up video stream
+        '''
+        
 
+        
         if self.th:
-            self.th.session.close()
-            self.th.terminate()
-            self.th.quit()
-            self.th= None
 
-        self.th =Thread(self.image_processor, self.videoLineEdit.text(), self.modelTimeLineEdit)
-        self.th.changePixmap.connect(self.setImage)
+            self.image_processor.changePixmap.disconnect(self.setImage)
+            self.categoriesComboBox.editFilter.disconnect(self.image_processor.editFilter)
+            self.pixmapChanged.disconnect(self.image_processor.loadFrame)
+            
+            time.sleep(0.5) 
+            
+
+            self.image_processor.image_detector.session.close()
+            while not self.image_processor.image_detector.session._closed:
+                time.sleep(0.1)
+
+            print("here")
+            self.th.quit()
+
+            
+            # self.th = None
+
+            self.handleLoadModule()
+        
+        
+        self.th = QtCore.QThread()
+        self.image_processor.moveToThread(self.th)
+        
+        self.pixmapChanged.connect(self.image_processor.loadFrame)
+        self.image_processor.changePixmap.connect(self.setImage)
+        self.categoriesComboBox.editFilter.connect(self.image_processor.editFilter)
         self.th.start()
+        self.image_processor.setupVideoStream(self.videoLineEdit.text())
+
+     
 
 
     def handleLoadModule(self):
-        
-        
+        ''' 
+            - Checks whether image_processor is currently running to determine whether or not is the fist run
+        '''
+
+        if self.image_processor:
+            if self.image_processor.receivers(self.image_processor.changePixmap):
+
+                self.handleRun()
+
+                return
+
         self.modelInput = self.modelLineEdit.text()
         pathOrLink = self.modelInput
 
@@ -226,10 +315,12 @@ class VideoWindow(QMainWindow):
                 self.modelLineEdit.clear()
                 self.error = ErrorWindow("Path provided is not a directory, a tarFile or a link", self.Icon)
                 self.error.show()
+
                 
 
                 
-#ssd_mobilenet_v1_coco_11_06_2017
+    #ssd_mobilenet_v1_coco_11_06_2017
+
     def setImage(self, image, time):
 
         self.modelTimeLineEdit.setText(str(time))
@@ -237,6 +328,7 @@ class VideoWindow(QMainWindow):
         pixmapItem = QtWidgets.QGraphicsPixmapItem(QtGui.QPixmap.fromImage(image))
         scene.addItem(pixmapItem)
         self.videoWidget.setScene(scene)
+        self.pixmapChanged.emit()
 
  
 
@@ -246,17 +338,12 @@ class VideoWindow(QMainWindow):
         - Looks for unpacked model, if found opens and loads inference graph into memory
         - Downloads model if link is provided, unpacks model and loads graph into memory
         '''
-
-        # pathOrLink = Path(self.modelInput)
-
-        # _bool, fileDirName = self.pathOrLinkCheck(pathOrLink)
-
-        # if not _bool: self.modelLineEdit.clear()
         
         graphPath = Path(self.modelsDirPath + os.sep + str(fileDirName) + os.sep + 'frozen_inference_graph.pb')
 
         if 'frozen_inference_graph.pb' in os.path.basename(graphPath):
             self.image_processor = FrameProcessor(graphPath)
+            self.categoriesComboBox.initComboBox(self.image_processor.category_index)
 
             self.runButton.setEnabled(True)
 
@@ -334,28 +421,150 @@ class VideoWindow(QMainWindow):
                 if 'frozen_inference_graph.pb' in file_name:
                     tar_file.extract(file, self.modelsDirPath)
 
+    def loadLabelMaps(self):
+
+        pass
 
 
-class FrameProcessor():
+class FrameProcessor(QtCore.QObject):
 
+
+    changePixmap = QtCore.pyqtSignal(QtGui.QImage, float)
 
     def __init__(self, graphPath):
         '''
         misc
         '''
+        super().__init__()
 
         self.NUM_CLASSES = 90
+
+        self.image_detector = ImageDetector(graphPath)
+        self.image_detector.session =  tf.Session(graph=self.image_detector.detectionGraph)
+
+        '''Categories'''
+        self.PATH_TO_LABELS = os.path.join('data', 'mscoco_label_map.pbtxt')
+
+        ''' Image variables'''
+        self.rgbImage = None
+        self.convertToQtFormat = None
+        self.p = None
+        self.frame = None
+        
+        ''' Labeling and visualization utilities Utilities '''
+        self.label_map = label_map_util.load_labelmap(r'..\data\mscoco_label_map.pbtxt')
+        self.categories = label_map_util.convert_label_map_to_categories(self.label_map, max_num_classes=self.NUM_CLASSES, use_display_name=True)
+        self.category_index = label_map_util.create_category_index(self.categories)
+        self.filter = {key:item["name"] for key,item in self.category_index.items()}
+
+        print(self.filter)
+    def setupVideoStream(self, videoFilePath):
+
+        if self.isNumber(videoFilePath)[0]: self.cap = cv2.VideoCapture(int(videoFilePath))
+        else: self.cap = cv2.VideoCapture(videoFilePath)
+
+        self.loadFrame()
+
+    def runDetection(self, image, sess):
+
+        
+
+        image_expanded = np.expand_dims(image, axis=0)
+
+        # # Actual detection.
+        startTime = time.time()
+        (boxes, scores, classes) = sess.run( [self.image_detector.boxes, self.image_detector.scores, self.image_detector.classes], 
+        feed_dict={self.image_detector.image_tensor: image_expanded})
+        endTime =time.time()
+        boxes, scores, classes, num_detections = self.filter_boxes(0.2, np.squeeze(boxes), np.squeeze(scores), np.squeeze(classes).astype(np.int32), self.filter)
+
+        #print('\n\nboxes\n\n', boxes, '\n\nscores\n\n', scores ,'\n\nclasses\n\n', classes)
+
+        try:  
+            
+            vis_util.visualize_boxes_and_labels_on_image_array(
+                image,
+                boxes,
+                classes,
+                scores,
+                self.category_index,
+                use_normalized_coordinates=True,
+                line_thickness=8)
+        except IndexError:
+            sys.exit()
+
+        return image, endTime - startTime
+
+ 
+    def loadFrame(self):
+
+            ret, self.frame = self.cap.read()
+            self.frame, time = self.runDetection(self.frame, self.image_detector.session)
+
+            self.rgbImage = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
+            self.convertToQtFormat = QtGui.QImage(self.rgbImage.data, self.rgbImage.shape[1], self.rgbImage.shape[0], QtGui.QImage.Format_RGB888)
+            self.p = self.convertToQtFormat.scaled(800, 640, QtCore.Qt.KeepAspectRatio)
+            self.changePixmap.emit(self.p, time)
+
+            
+    def filter_boxes(self, min_score, boxes, scores, classes, categories):
+
+        """Return boxes with a confidence >= `min_score`"""
+        n = len(classes)
+        num_detections = 0
+
+        idxs = []
+        for i in range(n):
+
+            if classes[i] in categories.keys() and scores[i] >= min_score:
+                idxs.append(i)
+                num_detections += 1
+        
+        filtered_boxes = boxes[idxs, ...]
+        filtered_scores = scores[idxs, ...]
+        filtered_classes = classes[idxs, ...]
+
+        # print(type(filtered_boxes), type(filtered_scores), type(filtered_classes))
+        return filtered_boxes, filtered_scores, filtered_classes, num_detections
+
+    def editFilter(self, filter):
+
+        self.filter = filter
+        print(self.filter)
+
+
+
+    def isNumber(self, s):
+        ''' 
+        Implemented in validating sample calculation inputs
+        '''
+        try:
+            int(s)
+            return (True, None)
+        except Exception as e:
+            return (False, e)
+            
+class ImageDetector():
+
+    def __init__(self, graphPath):
+
+
+        '''session'''
+        self.session = None
+
+        '''Graph'''
 
         self.graphPath = graphPath
         self.detectionGraph = tf.Graph()
         self.od_graph_def = tf.GraphDef()
 
-        '''Categories'''
-        self.PATH_TO_LABELS = os.path.join('data', 'mscoco_label_map.pbtxt')
+        ''' tensors '''
 
-        self.label_map = label_map_util.load_labelmap(r'..\data\mscoco_label_map.pbtxt')
-        self.categories = label_map_util.convert_label_map_to_categories(self.label_map, max_num_classes=self.NUM_CLASSES, use_display_name=True)
-        self.category_index = label_map_util.create_category_index(self.categories)
+        self.image_tensor = None
+        self.boxes = None
+        self.classes = None
+        self.scores = None
+        self.num_detections = None 
 
         self.createDetectionGraph()
 
@@ -369,68 +578,19 @@ class FrameProcessor():
                 serialized_graph = fid.read()
                 self.od_graph_def.ParseFromString(serialized_graph)
                 tf.import_graph_def(self.od_graph_def, name='')
-    
-    def runDetection(self, image, sess):
 
-        
+        self.image_tensor = self.detectionGraph.get_tensor_by_name('image_tensor:0')
 
-        image_expanded = np.expand_dims(image, axis=0)
-        image_tensor = self.detectionGraph.get_tensor_by_name('image_tensor:0')
         # Each box represents a part of the image where a particular object was detected.
-        boxes = self.detectionGraph.get_tensor_by_name('detection_boxes:0')
+        self.boxes = self.detectionGraph.get_tensor_by_name('detection_boxes:0')
+
         # Each score represent how level of confidence for each of the objects.
         # Score is shown on the result image, together with the class label.
-        scores = self.detectionGraph.get_tensor_by_name('detection_scores:0')
-        classes = self.detectionGraph.get_tensor_by_name('detection_classes:0')
+        self.scores = self.detectionGraph.get_tensor_by_name('detection_scores:0')
+
+        self.classes = self.detectionGraph.get_tensor_by_name('detection_classes:0')
+
         # num_detections = self.detectionGraph.get_tensor_by_name('num_detections:0')
-        # Actual detection.
-        startTime = time.time()
-        (boxes, scores, classes) = sess.run( [boxes, scores, classes], feed_dict={image_tensor: image_expanded})
-        endTime = time.time()
-        #print(( '\n\nboxes\n\n', boxes, '\n\nscores\n\n', scores ,'\n\nclasses\n\n', classes, '\n\nnum_detections\n\n', num_detections))
-        # Visualization of the results of a detection.
-
-        # (boxes, scores, classes) = self.filter_boxes(0.2, np.squeeze(boxes), np.squeeze(scores), np.squeeze(classes).astype(np.int32), [1])
-        # if list(boxes):
-        #     print(scores)
-        #     vis_util.visualize_boxes_and_labels_on_image_array(
-        #         image,
-        #         boxes,
-        #         classes,
-        #         scores,
-        #         self.category_index,
-        #         use_normalized_coordinates=True,
-        #         line_thickness=8)
-
-        vis_util.visualize_boxes_and_labels_on_image_array(
-          image,
-          np.squeeze(boxes),
-          np.squeeze(classes).astype(np.int32),
-          np.squeeze(scores),
-          self.category_index,
-          use_normalized_coordinates=True,
-          line_thickness=8)
-
-        return image, endTime - startTime
-
-    def filter_boxes(self, min_score, boxes, scores, classes, categories):
-
-        # print( '\n\nboxes\n\n', boxes, '\n\nscores\n\n', scores ,'\n\nclasses\n\n', classes)
-        """Return boxes with a confidence >= `min_score`"""
-        n = len(classes)
-
-        idxs = []
-        for i in range(n):
-
-            if classes[i] in categories and scores[i] >= min_score:
-                idxs.append(i)
-        
-        filtered_boxes = boxes[idxs, ...]
-        filtered_scores = scores[idxs, ...]
-        filtered_classes = classes[idxs, ...]
-
-        return filtered_boxes, filtered_scores, filtered_classes
-
-
+        self.num_detections = self.detectionGraph.get_tensor_by_name('num_detections:0')
 
 
