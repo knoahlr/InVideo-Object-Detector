@@ -29,33 +29,87 @@ DATA = r"..\data"
 
 class CheckableComboBox(QtWidgets.QComboBox):
 
+    editFilter = QtCore.pyqtSignal(dict)
+
     def __init__(self):
 
         super().__init__()
+        self.checkedItems = None
         self.view().pressed.connect(self.handleItemPressed)
         self.setModel(QtGui.QStandardItemModel(self))
+        self.itemCount = 0
 
     def initComboBox(self, categoriesIndex):
         
         elemIndex = 0
+        self.addItem("All")
+        item = self.model().item(elemIndex, 0)
+        item.setCheckState(QtCore.Qt.Unchecked)
+        elemIndex += 1
 
         for elem in categoriesIndex:
 
             self.addItem(categoriesIndex[elem]["name"])
             item = self.model().item(elemIndex, 0)
             item.setCheckState(QtCore.Qt.Unchecked)
+            # item.setFlags()
             elemIndex += 1
+        self.itemCount = elemIndex
 
     def handleItemPressed(self, index):
 
+
         item = self.model().itemFromIndex(index)
+
+
+        if item.text() == "All":
+
+            if item.checkState() == QtCore.Qt.Unchecked:
+
+                model = self.model()
+
+                for i in range(self.itemCount):
+                    print(i)
+                    item = model.item(i, 0)
+                    item.setCheckState(QtCore.Qt.Checked)
+                    # model.itemChanged(item)
+
+            else:
+
+                model = self.model()
+
+                for i in range(self.itemCount):
+                    item = model.item(i, 0)
+                    item.setCheckState(QtCore.Qt.Unchecked)
+
 
         if item.checkState() == QtCore.Qt.Checked:
 
             item.setCheckState(QtCore.Qt.Unchecked)
+
         else:
+
             item.setCheckState(QtCore.Qt.Checked)
 
+        self.getAllCheckedItems()
+        
+
+
+        
+
+    def getAllCheckedItems(self):
+
+        filter = {}
+
+        model = self.model()
+
+        for i in range(model.rowCount()):
+            item = model.item(i, 0)
+
+            if item.checkState() == QtCore.Qt.Checked: filter[i] = item.text()
+
+        self.editFilter.emit(filter)
+            
 class VideoWindow(QMainWindow):
 
     '''
@@ -193,7 +247,9 @@ class VideoWindow(QMainWindow):
         if self.th:
 
             self.image_processor.changePixmap.disconnect(self.setImage)
+            self.categoriesComboBox.editFilter.disconnect(self.image_processor.editFilter)
             self.pixmapChanged.disconnect(self.image_processor.loadFrame)
+            
             time.sleep(0.5) 
             
 
@@ -215,7 +271,7 @@ class VideoWindow(QMainWindow):
         
         self.pixmapChanged.connect(self.image_processor.loadFrame)
         self.image_processor.changePixmap.connect(self.setImage)
-
+        self.categoriesComboBox.editFilter.connect(self.image_processor.editFilter)
         self.th.start()
         self.image_processor.setupVideoStream(self.videoLineEdit.text())
 
@@ -225,7 +281,6 @@ class VideoWindow(QMainWindow):
     def handleLoadModule(self):
         ''' 
             - Checks whether image_processor is currently running to determine whether or not is the fist run
-            -
         '''
 
         if self.image_processor:
@@ -371,8 +426,6 @@ class VideoWindow(QMainWindow):
         pass
 
 
-
-
 class FrameProcessor(QtCore.QObject):
 
 
@@ -392,15 +445,19 @@ class FrameProcessor(QtCore.QObject):
         '''Categories'''
         self.PATH_TO_LABELS = os.path.join('data', 'mscoco_label_map.pbtxt')
 
+        ''' Image variables'''
         self.rgbImage = None
         self.convertToQtFormat = None
         self.p = None
         self.frame = None
-
+        
+        ''' Labeling and visualization utilities Utilities '''
         self.label_map = label_map_util.load_labelmap(r'..\data\mscoco_label_map.pbtxt')
         self.categories = label_map_util.convert_label_map_to_categories(self.label_map, max_num_classes=self.NUM_CLASSES, use_display_name=True)
         self.category_index = label_map_util.create_category_index(self.categories)
+        self.filter = {key:item["name"] for key,item in self.category_index.items()}
 
+        print(self.filter)
     def setupVideoStream(self, videoFilePath):
 
         if self.isNumber(videoFilePath)[0]: self.cap = cv2.VideoCapture(int(videoFilePath))
@@ -418,31 +475,23 @@ class FrameProcessor(QtCore.QObject):
         startTime = time.time()
         (boxes, scores, classes) = sess.run( [self.image_detector.boxes, self.image_detector.scores, self.image_detector.classes], 
         feed_dict={self.image_detector.image_tensor: image_expanded})
-        endTime = time.time()
-        #print(( '\n\nboxes\n\n', boxes, '\n\nscores\n\n', scores ,'\n\nclasses\n\n', classes, '\n\nnum_detections\n\n', num_detections))
-        # Visualization of the results of a detection.
+        endTime =time.time()
+        boxes, scores, classes, num_detections = self.filter_boxes(0.2, np.squeeze(boxes), np.squeeze(scores), np.squeeze(classes).astype(np.int32), self.filter)
 
-        # (boxes, scores, classes) = self.filter_boxes(0.2, np.squeeze(boxes), np.squeeze(scores), np.squeeze(classes).astype(np.int32), [1])
-        # if list(boxes):
-        #     print(scores)
-        #     vis_util.visualize_boxes_and_labels_on_image_array(
-        #         image,
-        #         boxes,
-        #         classes,
-        #         scores,
-        #         self.category_index,
-        #         use_normalized_coordinates=True,
-        #         line_thickness=8)
+        #print('\n\nboxes\n\n', boxes, '\n\nscores\n\n', scores ,'\n\nclasses\n\n', classes)
 
-
-        vis_util.visualize_boxes_and_labels_on_image_array(
-          image,
-          np.squeeze(boxes),
-          np.squeeze(classes).astype(np.int32),
-          np.squeeze(scores),
-          self.category_index,
-          use_normalized_coordinates=True,
-          line_thickness=8)
+        try:  
+            
+            vis_util.visualize_boxes_and_labels_on_image_array(
+                image,
+                boxes,
+                classes,
+                scores,
+                self.category_index,
+                use_normalized_coordinates=True,
+                line_thickness=8)
+        except IndexError:
+            sys.exit()
 
         return image, endTime - startTime
 
@@ -457,25 +506,33 @@ class FrameProcessor(QtCore.QObject):
             self.p = self.convertToQtFormat.scaled(800, 640, QtCore.Qt.KeepAspectRatio)
             self.changePixmap.emit(self.p, time)
 
-
-
-
+            
     def filter_boxes(self, min_score, boxes, scores, classes, categories):
 
         """Return boxes with a confidence >= `min_score`"""
         n = len(classes)
+        num_detections = 0
 
         idxs = []
         for i in range(n):
 
-            if classes[i] in categories and scores[i] >= min_score:
+            if classes[i] in categories.keys() and scores[i] >= min_score:
                 idxs.append(i)
+                num_detections += 1
         
         filtered_boxes = boxes[idxs, ...]
         filtered_scores = scores[idxs, ...]
         filtered_classes = classes[idxs, ...]
 
-        return filtered_boxes, filtered_scores, filtered_classes
+        # print(type(filtered_boxes), type(filtered_scores), type(filtered_classes))
+        return filtered_boxes, filtered_scores, filtered_classes, num_detections
+
+    def editFilter(self, filter):
+
+        self.filter = filter
+        print(self.filter)
+
+
 
     def isNumber(self, s):
         ''' 
