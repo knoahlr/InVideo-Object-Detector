@@ -16,60 +16,45 @@ import collections
 
 sys.path.append(os.path.abspath(r"../"))
 
-from utils import label_map_util
-from utils import visualization_utils as vis_util
+try:
+    from utils import label_map_util
+    from utils import visualization_utils as vis_util
+except ModuleNotFoundError as e:
+    print(str(e))
 
 ICON = Path(r'..\articles\atom.png')
 
+DATA = r"..\data"
 
-class Thread(QtCore.QThread):
 
-    changePixmap = QtCore.pyqtSignal(QtGui.QImage, float)
+class CheckableComboBox(QtWidgets.QComboBox):
 
-    def __init__(self, image_processor, videoFilePath, modelTimeLineEdit):
-        
+    def __init__(self):
+
         super().__init__()
+        self.view().pressed.connect(self.handleItemPressed)
+        self.setModel(QtGui.QStandardItemModel(self))
 
-        if self.isNumber(videoFilePath)[0]: self.cap = cv2.VideoCapture(int(videoFilePath))
-        else: self.cap = cv2.VideoCapture(videoFilePath)
-
-        self.rgbImage = None
-        self.convertToQtFormat = None
-        self.p = None
-        self.frame = None
-        self.frameProcessor = image_processor
-
-
-    def run(self):
+    def initComboBox(self, categoriesIndex):
         
-        with tf.Session(graph=self.frameProcessor.image_detector.detectionGraph) as self.frameProcessor.image_detector.session:
+        elemIndex = 0
 
-            while True:
-                ret, self.frame = self.cap.read()
-                self.frame, time = self.frameProcessor.runDetection(self.frame, self.frameProcessor.image_detector.session)
+        for elem in categoriesIndex:
 
-                self.rgbImage = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
-                self.convertToQtFormat = QtGui.QImage(self.rgbImage.data, self.rgbImage.shape[1], self.rgbImage.shape[0], QtGui.QImage.Format_RGB888)
-                self.p = self.convertToQtFormat.scaled(800, 640, QtCore.Qt.KeepAspectRatio)
-                self.changePixmap.emit(self.p, time)
-            
-    def quit(self):
+            self.addItem(categoriesIndex[elem]["name"])
+            item = self.model().item(elemIndex, 0)
+            item.setCheckState(QtCore.Qt.Unchecked)
+            elemIndex += 1
 
-        self.cap.release()
-        self.changePixmap.disconnect()
-        self.blockSignals(True)
-        super().quit()
+    def handleItemPressed(self, index):
 
-    def isNumber(self, s):
-        ''' 
-        Implemented in validating sample calculation inputs
-        '''
-        try:
-            int(s)
-            return (True, None)
-        except Exception as e:
-            return (False, e)
+        item = self.model().itemFromIndex(index)
 
+        if item.checkState() == QtCore.Qt.Checked:
+
+            item.setCheckState(QtCore.Qt.Unchecked)
+        else:
+            item.setCheckState(QtCore.Qt.Checked)
 
 class VideoWindow(QMainWindow):
 
@@ -77,6 +62,7 @@ class VideoWindow(QMainWindow):
     Window for loading in video and model for classification
     
     '''
+    pixmapChanged = QtCore.pyqtSignal()
 
     def __init__(self):
 
@@ -87,6 +73,7 @@ class VideoWindow(QMainWindow):
         self.modelsDirPath = r"..\models"
         self.modelsDownloadPath = r"..\downloaded_models"
         self.downloadBase = 'http://download.tensorflow.org/models/object_detection/'
+        self.modelLabelMap = None
         self.modelInput = None
         self.image_processor = None
         self.error = None
@@ -136,7 +123,10 @@ class VideoWindow(QMainWindow):
         self.infoFont.setItalic(True)
         self.infoFont.setFamily("Comic Sans MS")
         self.info.setFont(self.infoFont)
-
+        
+        ''' Categories Specifications '''
+        self.categoriesLabel = QLabel("Categories")
+        self.categoriesComboBox = CheckableComboBox()
 
         self.videoFilePath = QLabel('Path to Video')
         self.modelImportButton = QPushButton('Load Module')
@@ -168,8 +158,11 @@ class VideoWindow(QMainWindow):
         self.inputsFrameLayout.setWidget(1, QFormLayout.LabelRole, self.videoFilePath)
         self.inputsFrameLayout.setWidget(1, QFormLayout.FieldRole, self.videoLineEdit)
 
-        self.inputsFrameLayout.setWidget(2, QFormLayout.LabelRole, self.modelImportButton)
-        self.inputsFrameLayout.setWidget(2, QFormLayout.FieldRole, self.modelLineEdit)
+        self.inputsFrameLayout.setWidget(2, QFormLayout.LabelRole, self.categoriesLabel)
+        self.inputsFrameLayout.setWidget(2, QFormLayout.FieldRole, self.categoriesComboBox)
+
+        self.inputsFrameLayout.setWidget(3, QFormLayout.LabelRole, self.modelImportButton)
+        self.inputsFrameLayout.setWidget(3, QFormLayout.FieldRole, self.modelLineEdit)
         self.inputsFrameLayout.addWidget(self.runButton)
 
 
@@ -184,21 +177,64 @@ class VideoWindow(QMainWindow):
 
 
     def handleRun(self):
+    
+        '''
+            - Disconnect signals to stop Graph execution from being started.
+            - Wait for current Graph execution to finish
+            - Exit Thread
+                -create new image_processor QObject
+                -Load neural net to image_processor
+                -initialize image_processor session
+                -set up video stream
+        '''
+        
 
+        
         if self.th:
-            self.th.session.close()
-            self.th.terminate()
-            self.th.quit()
-            self.th= None
 
-        self.th =Thread(self.image_processor, self.videoLineEdit.text(), self.modelTimeLineEdit)
-        self.th.changePixmap.connect(self.setImage)
+            self.image_processor.changePixmap.disconnect(self.setImage)
+            self.pixmapChanged.disconnect(self.image_processor.loadFrame)
+            time.sleep(0.5) 
+            
+
+            self.image_processor.image_detector.session.close()
+            while not self.image_processor.image_detector.session._closed:
+                time.sleep(0.1)
+
+            print("here")
+            self.th.quit()
+
+            
+            # self.th = None
+
+            self.handleLoadModule()
+        
+        
+        self.th = QtCore.QThread()
+        self.image_processor.moveToThread(self.th)
+        
+        self.pixmapChanged.connect(self.image_processor.loadFrame)
+        self.image_processor.changePixmap.connect(self.setImage)
+
         self.th.start()
+        self.image_processor.setupVideoStream(self.videoLineEdit.text())
+
+     
 
 
     def handleLoadModule(self):
-        
-        
+        ''' 
+            - Checks whether image_processor is currently running to determine whether or not is the fist run
+            -
+        '''
+
+        if self.image_processor:
+            if self.image_processor.receivers(self.image_processor.changePixmap):
+
+                self.handleRun()
+
+                return
+
         self.modelInput = self.modelLineEdit.text()
         pathOrLink = self.modelInput
 
@@ -224,10 +260,12 @@ class VideoWindow(QMainWindow):
                 self.modelLineEdit.clear()
                 self.error = ErrorWindow("Path provided is not a directory, a tarFile or a link", self.Icon)
                 self.error.show()
+
                 
 
                 
-#ssd_mobilenet_v1_coco_11_06_2017
+    #ssd_mobilenet_v1_coco_11_06_2017
+
     def setImage(self, image, time):
 
         self.modelTimeLineEdit.setText(str(time))
@@ -235,6 +273,7 @@ class VideoWindow(QMainWindow):
         pixmapItem = QtWidgets.QGraphicsPixmapItem(QtGui.QPixmap.fromImage(image))
         scene.addItem(pixmapItem)
         self.videoWidget.setScene(scene)
+        self.pixmapChanged.emit()
 
  
 
@@ -244,17 +283,12 @@ class VideoWindow(QMainWindow):
         - Looks for unpacked model, if found opens and loads inference graph into memory
         - Downloads model if link is provided, unpacks model and loads graph into memory
         '''
-
-        # pathOrLink = Path(self.modelInput)
-
-        # _bool, fileDirName = self.pathOrLinkCheck(pathOrLink)
-
-        # if not _bool: self.modelLineEdit.clear()
         
         graphPath = Path(self.modelsDirPath + os.sep + str(fileDirName) + os.sep + 'frozen_inference_graph.pb')
 
         if 'frozen_inference_graph.pb' in os.path.basename(graphPath):
             self.image_processor = FrameProcessor(graphPath)
+            self.categoriesComboBox.initComboBox(self.image_processor.category_index)
 
             self.runButton.setEnabled(True)
 
@@ -332,30 +366,48 @@ class VideoWindow(QMainWindow):
                 if 'frozen_inference_graph.pb' in file_name:
                     tar_file.extract(file, self.modelsDirPath)
 
+    def loadLabelMaps(self):
+
+        pass
 
 
-class FrameProcessor():
 
+
+class FrameProcessor(QtCore.QObject):
+
+
+    changePixmap = QtCore.pyqtSignal(QtGui.QImage, float)
 
     def __init__(self, graphPath):
         '''
         misc
         '''
+        super().__init__()
 
         self.NUM_CLASSES = 90
 
         self.image_detector = ImageDetector(graphPath)
+        self.image_detector.session =  tf.Session(graph=self.image_detector.detectionGraph)
 
         '''Categories'''
         self.PATH_TO_LABELS = os.path.join('data', 'mscoco_label_map.pbtxt')
+
+        self.rgbImage = None
+        self.convertToQtFormat = None
+        self.p = None
+        self.frame = None
 
         self.label_map = label_map_util.load_labelmap(r'..\data\mscoco_label_map.pbtxt')
         self.categories = label_map_util.convert_label_map_to_categories(self.label_map, max_num_classes=self.NUM_CLASSES, use_display_name=True)
         self.category_index = label_map_util.create_category_index(self.categories)
 
+    def setupVideoStream(self, videoFilePath):
 
+        if self.isNumber(videoFilePath)[0]: self.cap = cv2.VideoCapture(int(videoFilePath))
+        else: self.cap = cv2.VideoCapture(videoFilePath)
 
-    
+        self.loadFrame()
+
     def runDetection(self, image, sess):
 
         
@@ -394,6 +446,20 @@ class FrameProcessor():
 
         return image, endTime - startTime
 
+ 
+    def loadFrame(self):
+
+            ret, self.frame = self.cap.read()
+            self.frame, time = self.runDetection(self.frame, self.image_detector.session)
+
+            self.rgbImage = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
+            self.convertToQtFormat = QtGui.QImage(self.rgbImage.data, self.rgbImage.shape[1], self.rgbImage.shape[0], QtGui.QImage.Format_RGB888)
+            self.p = self.convertToQtFormat.scaled(800, 640, QtCore.Qt.KeepAspectRatio)
+            self.changePixmap.emit(self.p, time)
+
+
+
+
     def filter_boxes(self, min_score, boxes, scores, classes, categories):
 
         """Return boxes with a confidence >= `min_score`"""
@@ -411,7 +477,16 @@ class FrameProcessor():
 
         return filtered_boxes, filtered_scores, filtered_classes
 
-
+    def isNumber(self, s):
+        ''' 
+        Implemented in validating sample calculation inputs
+        '''
+        try:
+            int(s)
+            return (True, None)
+        except Exception as e:
+            return (False, e)
+            
 class ImageDetector():
 
     def __init__(self, graphPath):
