@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 
 import os, sys, time
-
+from pathlib import Path
 sys.path.append(os.path.abspath(r"../"))
 
 try:
@@ -18,7 +18,7 @@ class FrameProcessor(QtCore.QObject):
 
     changePixmap = QtCore.pyqtSignal(QtGui.QImage, float)
 
-    def __init__(self, graphPath):
+    def __init__(self, graphPath, labelMapFile):
         '''
         misc
         '''
@@ -38,11 +38,19 @@ class FrameProcessor(QtCore.QObject):
         self.p = None
         self.frame = None
         
+        
         ''' Labeling and visualization utilities Utilities '''
-        self.label_map = label_map_util.load_labelmap(r'..\data\mscoco_label_map.pbtxt')
+        
+        labelFilePath = Path(r"../data"+ os.sep + labelMapFile)
+        self.label_map = label_map_util.load_labelmap(str(labelFilePath))
         self.categories = label_map_util.convert_label_map_to_categories(self.label_map, max_num_classes=self.NUM_CLASSES, use_display_name=True)
         self.category_index = label_map_util.create_category_index(self.categories)
         self.filter = {key:item["name"] for key,item in self.category_index.items()}
+        
+
+    def loadLabels(self):
+
+        pass
 
 
     def setupVideoStream(self, videoFilePath):

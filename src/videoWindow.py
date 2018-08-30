@@ -167,6 +167,9 @@ class VideoWindow(QMainWindow):
         self.inputsFrameLayout = QHBoxLayout(self.inputsFrame)
         self.videoModelFrameLayout = QFormLayout(self.videoModelFrame)
         self.dataCategoriesLayout = QFormLayout(self.dataCategories)
+        # self.dataCategoriesLayout.setAlignment(QtCore.Qt.AlignCenter)
+        self.videoModelFrameLayout.setSpacing(12)
+        self.dataCategoriesLayout.setSpacing(12)
 
         self.statsFrameLayout = QFormLayout(self.statsFrame)
 
@@ -205,7 +208,8 @@ class VideoWindow(QMainWindow):
 
         ''' load Input Labels '''
         self.LoadLabels = QPushButton("Load Labels")
-        self.LoadLabelsLineEdit = QLineEdit("mscoco_label_map.pbtxt")
+        self.loadLabelsComboBox = QtWidgets.QComboBox() #"mscoco_label_map.pbtxt"
+        self.populateLabelComboBox(self.loadLabelsComboBox)
 
         ''' stat Fields '''
         self.modelTimeLabel = QLabel('Time')
@@ -216,9 +220,9 @@ class VideoWindow(QMainWindow):
 
         '''run button'''
         self.runButton = QPushButton('Run')
-        self.runButtonPolicy = QtWidgets.QSizePolicy()
-        self.runButtonPolicy.setControlType(QtWidgets.QSizePolicy.ButtonBox)
-        self.runButton.setSizePolicy(self.runButtonPolicy)
+        # self.runButtonPolicy = QtWidgets.QSizePolicy()
+        # self.runButtonPolicy.setControlType(QtWidgets.QSizePolicy.ButtonBox)
+        # self.runButton.setSizePolicy(self.runButtonPolicy)
         self.runButton.clicked.connect(self.handleRun)
         self.runButton.setEnabled(False)
 
@@ -228,25 +232,30 @@ class VideoWindow(QMainWindow):
         self.videoWidget = QtWidgets.QGraphicsView(self.videoFrame)
         self.videoFrameLayout.addWidget(self.videoWidget)
 
-        ''' Add Labels and line edits to group boxes '''
-        # self.inputsFrameLayout.addWidget(self.info)
-        self.videoModelFrameLayout.setWidget(0, QFormLayout.LabelRole, self.videoFilePath)
-        self.videoModelFrameLayout.setWidget(0, QFormLayout.FieldRole, self.videoLineEdit)
 
-        self.videoModelFrameLayout.setWidget(1, QFormLayout.LabelRole, self.modelImportButton)
-        self.videoModelFrameLayout.setWidget(1, QFormLayout.FieldRole,  self.modelLineEdit)
+#Region: Adding to group boxes
+
+        ''' Add Labels and line edits to group boxes '''
+        self.videoModelFrameLayout.addWidget(self.info)
+        self.videoModelFrameLayout.setWidget(1, QFormLayout.LabelRole, self.videoFilePath)
+        self.videoModelFrameLayout.setWidget(1, QFormLayout.FieldRole, self.videoLineEdit)
+
+        self.videoModelFrameLayout.setWidget(2, QFormLayout.LabelRole, self.modelImportButton)
+        self.videoModelFrameLayout.setWidget(2, QFormLayout.FieldRole,  self.modelLineEdit)
 
         self.dataCategoriesLayout.setWidget(0, QFormLayout.LabelRole, self.categoriesLabel)
         self.dataCategoriesLayout.setWidget(0, QFormLayout.FieldRole,self.categoriesComboBox)
 
         self.dataCategoriesLayout.setWidget(1, QFormLayout.LabelRole, self.LoadLabels)
-        self.dataCategoriesLayout.setWidget(1, QFormLayout.FieldRole, self.LoadLabelsLineEdit)
+        self.dataCategoriesLayout.setWidget(1, QFormLayout.FieldRole, self.loadLabelsComboBox)
 
-        self.dataCategoriesLayout.addWidget(self.runButton)
+        self.dataCategoriesLayout.setWidget(2, QFormLayout.FieldRole, self.runButton)
 
         self.statsFrameLayout.setWidget(0, QFormLayout.LabelRole, self.modelTimeLabel)
         self.statsFrameLayout.setWidget(0, QFormLayout.FieldRole, self.modelTimeLineEdit)
 
+
+#Region: Adding to Window
         self.inputsFrameLayout.addWidget(self.videoModelFrame)
         self.inputsFrameLayout.addWidget(self.dataCategories)
   
@@ -256,6 +265,11 @@ class VideoWindow(QMainWindow):
 
         self.setCentralWidget(self.centralwidget)
 
+    def populateLabelComboBox(self, labelsComboBox):
+
+        for fileName in os.listdir(r"../data"):
+
+            labelsComboBox.addItem(fileName)
 
     def handleRun(self):
     
@@ -374,9 +388,10 @@ class VideoWindow(QMainWindow):
         '''
         
         graphPath = Path(self.modelsDirPath + os.sep + str(fileDirName) + os.sep + 'frozen_inference_graph.pb')
-
+        labelMapFile = self.loadLabelsComboBox.currentText()
+        print(labelMapFile)
         if 'frozen_inference_graph.pb' in os.path.basename(graphPath):
-            self.image_processor = FrameProcessor(graphPath)
+            self.image_processor = FrameProcessor(graphPath, labelMapFile)
             self.categoriesComboBox.initComboBox(self.image_processor.category_index)
 
             self.runButton.setEnabled(True)
