@@ -39,7 +39,11 @@ class CheckableComboBox(QtWidgets.QComboBox):
         self.setModel(QtGui.QStandardItemModel(self))
         self.itemCount = 0
 
-    def initComboBox(self, categoriesIndex):
+    def populateComboBox(self, categoriesIndex):
+        
+        ''' Empty rows '''
+        model = self.model()
+        model.removeRows(0, model.rowCount() )
         
         elemIndex = 0
         self.addItem("All")
@@ -112,6 +116,7 @@ class VideoWindow(QMainWindow):
     
     '''
     pixmapChanged = QtCore.pyqtSignal()
+    loadLabels = QtCore.pyqtSignal(str)
 
     def __init__(self):
 
@@ -210,6 +215,7 @@ class VideoWindow(QMainWindow):
 
         ''' load Input Labels '''
         self.LoadLabels = QPushButton("Load Labels")
+        self.LoadLabels.clicked.connect(self.handleLoadLabels)
         self.loadLabelsComboBox = QtWidgets.QComboBox() #"mscoco_label_map.pbtxt"
         self.populateLabelComboBox(self.loadLabelsComboBox)
 
@@ -273,6 +279,10 @@ class VideoWindow(QMainWindow):
         for fileName in os.listdir(r"../data"):
 
             labelsComboBox.addItem(fileName)
+    
+    def handleLoadLabels(self):
+
+        self.loadLabels.emit(self.loadLabelsComboBox.currentText())
 
     def handleRun(self):
     
@@ -290,7 +300,10 @@ class VideoWindow(QMainWindow):
         
         if self.th:
 
+            ''' Disconnect Signals '''
             self.image_processor.changePixmap.disconnect(self.setImage)
+            self.image_processor.populateComboBox.disconnect(self.categoriesComboBox.populateComboBox)
+            self.loadLabels.disconnect(self.image_processor.loadLabels)
             self.categoriesComboBox.editFilter.disconnect(self.image_processor.editFilter)
             self.pixmapChanged.disconnect(self.image_processor.loadFrame)
             
@@ -312,9 +325,12 @@ class VideoWindow(QMainWindow):
         self.th = QtCore.QThread()
         self.image_processor.moveToThread(self.th)
         
+        ''' Connecting Signals '''
         self.pixmapChanged.connect(self.image_processor.loadFrame)
         self.image_processor.changePixmap.connect(self.setImage)
+        
         self.categoriesComboBox.editFilter.connect(self.image_processor.editFilter)
+        
 
         self.th.start()
         self.image_processor.setupVideoStream(self.videoLineEdit.text())
@@ -394,8 +410,13 @@ class VideoWindow(QMainWindow):
         labelMapFile = self.loadLabelsComboBox.currentText()
         print(labelMapFile)
         if 'frozen_inference_graph.pb' in os.path.basename(graphPath):
-            self.image_processor = FrameProcessor(graphPath, labelMapFile)
-            self.categoriesComboBox.initComboBox(self.image_processor.category_index)
+            self.image_processor = FrameProcessor(graphPath)
+
+            self.image_processor.populateComboBox.connect(self.categoriesComboBox.populateComboBox)
+            self.loadLabels.connect(self.image_processor.loadLabels)
+
+            self.image_processor.loadLabels(labelMapFile)
+            # self.categoriesComboBox.populateComboBox(self.image_processor.category_index)
 
             self.runButton.setEnabled(True)
 
