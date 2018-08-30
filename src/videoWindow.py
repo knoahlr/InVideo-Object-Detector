@@ -129,7 +129,8 @@ class VideoWindow(QMainWindow):
         self.createModelsDir()
         
 
-        self.specificationsInfo = "Note: Module has to be loaded first.\n"
+        self.specificationsInfo1 = "Note: Module has to be loaded first."
+        self.specificationsInfo2 = "Specify folder or link to model and labelMap text file"
 
         ''' Window Properties'''
 
@@ -176,12 +177,13 @@ class VideoWindow(QMainWindow):
 
 
         ''' input labels '''
-        self.info = QLabel(self.specificationsInfo)
-        self.infoFont = self.info.font()
-        self.infoFont.setPointSize(10)
-        self.infoFont.setItalic(True)
-        self.infoFont.setFamily("Comic Sans MS")
-        self.info.setFont(self.infoFont)
+        self.info1 = QLabel(self.specificationsInfo1)
+        self.info2 = QLabel(self.specificationsInfo2)
+
+        self.setInfo(self.info1)
+        self.setInfo(self.info2)
+
+
         
         ''' Categories Specifications '''
         self.categoriesLabel = QLabel("Categories")
@@ -236,12 +238,13 @@ class VideoWindow(QMainWindow):
 #Region: Adding to group boxes
 
         ''' Add Labels and line edits to group boxes '''
-        self.videoModelFrameLayout.addWidget(self.info)
-        self.videoModelFrameLayout.setWidget(1, QFormLayout.LabelRole, self.videoFilePath)
-        self.videoModelFrameLayout.setWidget(1, QFormLayout.FieldRole, self.videoLineEdit)
+        self.videoModelFrameLayout.addWidget(self.info1)
+        self.videoModelFrameLayout.addWidget(self.info2)
+        self.videoModelFrameLayout.setWidget(2, QFormLayout.LabelRole, self.videoFilePath)
+        self.videoModelFrameLayout.setWidget(2, QFormLayout.FieldRole, self.videoLineEdit)
 
-        self.videoModelFrameLayout.setWidget(2, QFormLayout.LabelRole, self.modelImportButton)
-        self.videoModelFrameLayout.setWidget(2, QFormLayout.FieldRole,  self.modelLineEdit)
+        self.videoModelFrameLayout.setWidget(3, QFormLayout.LabelRole, self.modelImportButton)
+        self.videoModelFrameLayout.setWidget(3, QFormLayout.FieldRole,  self.modelLineEdit)
 
         self.dataCategoriesLayout.setWidget(0, QFormLayout.LabelRole, self.categoriesLabel)
         self.dataCategoriesLayout.setWidget(0, QFormLayout.FieldRole,self.categoriesComboBox)
@@ -470,8 +473,12 @@ class VideoWindow(QMainWindow):
                 if 'frozen_inference_graph.pb' in file_name:
                     tar_file.extract(file, self.modelsDirPath)
 
-    def loadLabelMaps(self):
+    def setInfo(self, info):
 
-        pass
+        infoFont = info.font()
+        infoFont.setPointSize(10)
+        infoFont.setItalic(True)
+        infoFont.setFamily("Comic Sans MS")
+        info.setFont(infoFont)
 
 
