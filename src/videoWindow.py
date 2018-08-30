@@ -1,13 +1,14 @@
 from PyQt5 import QtGui, QtCore, QtWidgets
-from PyQt5.QtWidgets import QWidget, QFormLayout, QMainWindow, QGroupBox, QVBoxLayout, \
-QLabel, QTextEdit, QLineEdit, QPushButton
+from PyQt5.QtWidgets import QWidget, QFormLayout, QMainWindow, QGroupBox, QVBoxLayout, QHBoxLayout, \
+QLabel, QTextEdit, QLineEdit, QPushButton, QFrame
 
 from errorWindow import ErrorWindow
 from frameProcessor import FrameProcessor
 
 import cv2
 
-import sys, os
+import sys, os, time
+
 from pathlib import Path
 import tarfile
 import urllib
@@ -68,7 +69,6 @@ class CheckableComboBox(QtWidgets.QComboBox):
                 model = self.model()
 
                 for i in range(self.itemCount):
-                    print(i)
                     item = model.item(i, 0)
                     item.setCheckState(QtCore.Qt.Checked)
                     # model.itemChanged(item)
@@ -149,8 +149,11 @@ class VideoWindow(QMainWindow):
 
         self.videoFrame = QGroupBox('Video')
         
-        self.inputsFrame = QGroupBox('Specifications')
         self.statsFrame = QGroupBox('Statistics')
+        self.inputsFrame = QGroupBox('Specifications')
+
+        self.videoModelFrame = QGroupBox()
+        self.dataCategories = QGroupBox()
 
         ''' Frame Size Policy'''
         self.videoFrame.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
@@ -160,7 +163,11 @@ class VideoWindow(QMainWindow):
         ''' Frame layout '''
 
         self.videoFrameLayout = QVBoxLayout(self.videoFrame)
-        self.inputsFrameLayout = QFormLayout(self.inputsFrame)
+
+        self.inputsFrameLayout = QHBoxLayout(self.inputsFrame)
+        self.videoModelFrameLayout = QFormLayout(self.videoModelFrame)
+        self.dataCategoriesLayout = QFormLayout(self.dataCategories)
+
         self.statsFrameLayout = QFormLayout(self.statsFrame)
 
 
@@ -176,7 +183,12 @@ class VideoWindow(QMainWindow):
         ''' Categories Specifications '''
         self.categoriesLabel = QLabel("Categories")
         self.categoriesComboBox = CheckableComboBox()
+        # self.categoriesComboBoxPolicy = QtWidgets.QSizePolicy()
+        # self.categoriesComboBoxPolicy.setControlType(QtWidgets.QSizePolicy.GroupBox)
 
+        # self.categoriesComboBox.setSizePolicy(self.categoriesComboBoxPolicy)
+  
+        ''' Load video and models '''
         self.videoFilePath = QLabel('Path to Video')
         self.modelImportButton = QPushButton('Load Module')
         self.modelImportButton.clicked.connect(self.handleLoadModule)
@@ -185,14 +197,28 @@ class VideoWindow(QMainWindow):
         self.videoLineEdit = QLineEdit(self.inputsFrame)
         self.modelLineEdit = QLineEdit(self.inputsFrame)
         self.modelLineEdit.setText('ssd_mobilenet_v1_coco_2018_01_28')
+        # self.modelLineEditPolicy = QtWidgets.QSizePolicy()
+        # self.modelLineEditPolicy.setControlType(QtWidgets.QSizePolicy.LineEdit)
+        # self.modelLineEdit.setSizePolicy(self.modelLineEditPolicy)
+
         self.videoLineEdit.setText(r"D:\OneDrive - Carleton University\Noah\Movies\Avatar - the last Airbender - Season 2 Complete - NXOR\S02E01 Avatar - The Last Airbender - Book 2 - Chapter 01 - The Avatar State.avi")
+
+        ''' load Input Labels '''
+        self.LoadLabels = QPushButton("Load Labels")
+        self.LoadLabelsLineEdit = QLineEdit("mscoco_label_map.pbtxt")
 
         ''' stat Fields '''
         self.modelTimeLabel = QLabel('Time')
         self.modelTimeLineEdit = QLineEdit(self.statsFrame)
+        self.modelTimePolicy = QtWidgets.QSizePolicy()
+        self.modelTimePolicy.setControlType(QtWidgets.QSizePolicy.LineEdit)
+        self.modelTimeLineEdit.setSizePolicy(self.modelTimePolicy)
 
         '''run button'''
         self.runButton = QPushButton('Run')
+        self.runButtonPolicy = QtWidgets.QSizePolicy()
+        self.runButtonPolicy.setControlType(QtWidgets.QSizePolicy.ButtonBox)
+        self.runButton.setSizePolicy(self.runButtonPolicy)
         self.runButton.clicked.connect(self.handleRun)
         self.runButton.setEnabled(False)
 
@@ -203,21 +229,27 @@ class VideoWindow(QMainWindow):
         self.videoFrameLayout.addWidget(self.videoWidget)
 
         ''' Add Labels and line edits to group boxes '''
-        self.inputsFrameLayout.addWidget(self.info)
-        self.inputsFrameLayout.setWidget(1, QFormLayout.LabelRole, self.videoFilePath)
-        self.inputsFrameLayout.setWidget(1, QFormLayout.FieldRole, self.videoLineEdit)
+        # self.inputsFrameLayout.addWidget(self.info)
+        self.videoModelFrameLayout.setWidget(0, QFormLayout.LabelRole, self.videoFilePath)
+        self.videoModelFrameLayout.setWidget(0, QFormLayout.FieldRole, self.videoLineEdit)
 
-        self.inputsFrameLayout.setWidget(2, QFormLayout.LabelRole, self.categoriesLabel)
-        self.inputsFrameLayout.setWidget(2, QFormLayout.FieldRole, self.categoriesComboBox)
+        self.videoModelFrameLayout.setWidget(1, QFormLayout.LabelRole, self.modelImportButton)
+        self.videoModelFrameLayout.setWidget(1, QFormLayout.FieldRole,  self.modelLineEdit)
 
-        self.inputsFrameLayout.setWidget(3, QFormLayout.LabelRole, self.modelImportButton)
-        self.inputsFrameLayout.setWidget(3, QFormLayout.FieldRole, self.modelLineEdit)
-        self.inputsFrameLayout.addWidget(self.runButton)
+        self.dataCategoriesLayout.setWidget(0, QFormLayout.LabelRole, self.categoriesLabel)
+        self.dataCategoriesLayout.setWidget(0, QFormLayout.FieldRole,self.categoriesComboBox)
 
+        self.dataCategoriesLayout.setWidget(1, QFormLayout.LabelRole, self.LoadLabels)
+        self.dataCategoriesLayout.setWidget(1, QFormLayout.FieldRole, self.LoadLabelsLineEdit)
+
+        self.dataCategoriesLayout.addWidget(self.runButton)
 
         self.statsFrameLayout.setWidget(0, QFormLayout.LabelRole, self.modelTimeLabel)
         self.statsFrameLayout.setWidget(0, QFormLayout.FieldRole, self.modelTimeLineEdit)
 
+        self.inputsFrameLayout.addWidget(self.videoModelFrame)
+        self.inputsFrameLayout.addWidget(self.dataCategories)
+  
         self.verticalLayout.addWidget(self.videoFrame)
         self.verticalLayout.addWidget(self.inputsFrame)
         self.verticalLayout.addWidget(self.statsFrame)
@@ -252,7 +284,6 @@ class VideoWindow(QMainWindow):
             while not self.image_processor.image_detector.session._closed:
                 time.sleep(0.1)
 
-            print("here")
             self.th.quit()
 
             
