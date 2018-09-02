@@ -163,7 +163,7 @@ class VideoWindow(QMainWindow):
 
         ''' Frame Size Policy'''
         self.videoFrame.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-
+  
         self.videoFrame.setAlignment(QtCore.Qt.AlignTop)
 
         ''' Frame layout '''
@@ -241,7 +241,7 @@ class VideoWindow(QMainWindow):
         self.videoFrameLayout.addWidget(self.videoWidget)
 
 
-#Region: Adding to group boxes
+
 
         ''' Add Labels and line edits to group boxes '''
         self.videoModelFrameLayout.addWidget(self.info1)
@@ -264,7 +264,7 @@ class VideoWindow(QMainWindow):
         self.statsFrameLayout.setWidget(0, QFormLayout.FieldRole, self.modelTimeLineEdit)
 
 
-#Region: Adding to Window
+
         self.inputsFrameLayout.addWidget(self.videoModelFrame)
         self.inputsFrameLayout.addWidget(self.dataCategories)
   
@@ -287,6 +287,7 @@ class VideoWindow(QMainWindow):
     def handleRun(self):
     
         '''
+            - Handles forking new threads and safely closing sessions
             - Disconnect signals to stop Graph execution from being started.
             - Wait for current Graph execution to finish
             - Exit Thread
@@ -339,8 +340,12 @@ class VideoWindow(QMainWindow):
 
 
     def handleLoadModule(self):
+
         ''' 
-            - Checks whether image_processor is currently running to determine whether or not is the fist run
+            - Checks whether image_processor thread is currently running to determine whether or not is the fist run  
+            - Downloads model if valid link or model name provided
+            - Call Load Module to load model into memory.
+        
         '''
 
         if self.image_processor:
@@ -371,10 +376,31 @@ class VideoWindow(QMainWindow):
                 self.loadModule(Path(pathOrLink))
             
             except urllib.error.URLError:
+                try:
 
-                self.modelLineEdit.clear()
-                self.error = ErrorWindow("Path provided is not a directory, a tarFile or a link", self.Icon)
-                self.error.show()
+                    opener = urllib.request.URLopener()
+
+                    if pathOrLink.endswith(".gz"): 
+
+                        opener.retrieve(pathOrLink, filename=self.modelsDownloadPath+os.sep+os.path.basename(pathOrLink))
+
+                        self.extractModels(self.modelsDownloadPath+os.sep+os.path.basename(pathOrLink))
+
+                        self.loadModule(Path(os.path.basename(pathOrLink).strip(".tar.gz")))
+
+                    else: 
+
+                        opener.retrieve(pathOrLink+".tar.gz", filename=self.modelsDownloadPath+os.sep+os.path.basename(pathOrLink).strip(".tar.gz"))
+
+                        self.extractModels(self.modelsDownloadPath+os.sep+os.path.basename(pathOrLink))
+
+                        self.loadModule(Path(os.path.basename(pathOrLink).strip(".tar.gz")))
+
+                except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
+
+                    self.modelLineEdit.clear()
+                    self.error = ErrorWindow("Path provided is not a directory, a tarFile or a link:\nError:{0}".format(str(e)), self.Icon)
+                    self.error.show()
 
                 
 
@@ -439,44 +465,26 @@ class VideoWindow(QMainWindow):
 
             relativePath = path
             fullPath = Path(self.modelsDirPath + os.sep + str(path))
+            try:
 
-            if relativePath.is_dir(): return True, relativePath
+                if relativePath.is_dir(): return True, relativePath
 
-            elif fullPath.is_dir(): return True, fullPath
+                elif fullPath.is_dir(): return True, fullPath
 
-            else:
-                try:
+                else:
+                    
                     if tarfile.is_tarfile(relativePath):
-
                         self.extractModels(relativePath)
                         return True, self.modelsDirPath
 
-                except FileNotFoundError:
-
-                    # self.error = ErrorWindow("Path provided is not a directory or a tarFile", self.Icon)
-                    # self.error.show()
-
-                    return False, None
- 
-                try:
                     if tarfile.is_tarfile(fullPath): 
-
                         self.extractModels(fullPath)
                         return True, self.modelsDirPath
 
-                except FileNotFoundError:
+            except (FileNotFoundError, OSError):
+  
+                return False, None
 
-                    return False, None
-
-                    # self.error = ErrorWindow("Path provided is not a directory or a tarFile", self.Icon)
-                    # self.error.show()
-
-        
-            # self.error = ErrorWindow("Path provided is not a directory or a tarFile", self.Icon)
-            # self.error.show()
-
-            return False, None
-        
 
     def createModelsDir(self):
 

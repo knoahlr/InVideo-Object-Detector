@@ -181,6 +181,7 @@ class ImageDetector():
                 tf.import_graph_def(self.od_graph_def, name='')
 
         self.image_tensor = self.detectionGraph.get_tensor_by_name('image_tensor:0')
+        print(tf.shape(self.image_tensor))
 
         # Each box represents a part of the image where a particular object was detected.
         self.boxes = self.detectionGraph.get_tensor_by_name('detection_boxes:0')
