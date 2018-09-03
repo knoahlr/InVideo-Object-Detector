@@ -5,6 +5,8 @@ import numpy as np
 
 import os, sys, time
 from pathlib import Path
+from errorWindow import ErrorWindow
+
 sys.path.append(os.path.abspath(r"../"))
 
 try:
@@ -12,6 +14,8 @@ try:
     from utils import visualization_utils as vis_util
 except ModuleNotFoundError as e:
     print(str(e))
+
+ICON = Path(r'..\articles\atom.png')
 
 class FrameProcessor(QtCore.QObject):
 
@@ -63,7 +67,15 @@ class FrameProcessor(QtCore.QObject):
     def setupVideoStream(self, videoFilePath):
 
         if self.isNumber(videoFilePath)[0]: self.cap = cv2.VideoCapture(int(videoFilePath))
-        else: self.cap = cv2.VideoCapture(videoFilePath)
+        else:
+            if Path(videoFilePath).is_file(): self.cap = cv2.VideoCapture(videoFilePath)
+            else:
+                videoFilePath = QtWidgets.QFileDialog.getOpenFileName(None, 'Select Video File ', r"../")
+                self.error = ErrorWindow("Path provided is not a video File", QtGui.QIcon(str(ICON)))
+                self.error.show()
+                self.cap = cv2.VideoCapture(videoFilePath)
+
+
 
         self.loadFrame()
 
