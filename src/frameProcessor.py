@@ -38,16 +38,12 @@ class FrameProcessor(QtCore.QObject):
         self.PATH_TO_LABELS = os.path.join('data', 'mscoco_label_map.pbtxt')
 
         ''' Image variables'''
+        self.videoFilePath = None
         self.rgbImage = None
         self.convertToQtFormat = None
         self.p = None
         self.frame = None
         
-        ''' Labeling and visualization utilities Utilities '''
-
-        
-
- 
         
 
     def loadLabels(self, labelMapFile):
@@ -66,18 +62,26 @@ class FrameProcessor(QtCore.QObject):
 
     def setupVideoStream(self, videoFilePath):
 
-        if self.isNumber(videoFilePath)[0]: self.cap = cv2.VideoCapture(int(videoFilePath))
+        self.videoFilePath = videoFilePath
+
+        if self.isNumber(videoFilePath)[0]: 
+
+            self.cap = cv2.VideoCapture(int(videoFilePath))
+
         else:
-            if Path(videoFilePath).is_file(): self.cap = cv2.VideoCapture(videoFilePath)
-            else:
+
+            if videoFilePath:
+                if Path(videoFilePath).is_file(): 
+                    self.cap = cv2.VideoCapture(videoFilePath)
+                    self.loadFrame()
+            else: 
                 videoFilePath = QtWidgets.QFileDialog.getOpenFileName(None, 'Select Video File ', r"../")
-                self.error = ErrorWindow("Path provided is not a video File", QtGui.QIcon(str(ICON)))
-                self.error.show()
-                self.cap = cv2.VideoCapture(videoFilePath)
+                
+                if videoFilePath[0]: 
+                    self.videoFilePath = videoFilePath[0]
+                    self.cap = cv2.VideoCapture(self.videoFilePath)
+                    self.loadFrame()
 
-
-
-        self.loadFrame()
 
     def runDetection(self, image, sess):
 

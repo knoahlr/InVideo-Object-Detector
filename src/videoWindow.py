@@ -334,7 +334,9 @@ class VideoWindow(QMainWindow):
         
 
         self.th.start()
+        
         self.image_processor.setupVideoStream(self.videoLineEdit.text())
+        self.videoLineEdit.setText(self.image_processor.videoFilePath)
 
      
 

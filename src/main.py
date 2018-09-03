@@ -11,7 +11,10 @@ sys.path.append(os.path.abspath(r"../"))
 from pathlib import Path
 
 if __name__ == "__main__":
-
+    
+    if not Path(r"../logs").is_dir():
+        os.makedirs(r"../logs")
+        
     logFile = open(Path(r"../logs/mainLog.log"), 'w')
     sys.stdout = logFile
 
