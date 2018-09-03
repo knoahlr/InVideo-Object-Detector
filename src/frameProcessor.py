@@ -5,6 +5,8 @@ import numpy as np
 
 import os, sys, time
 from pathlib import Path
+from errorWindow import ErrorWindow
+
 sys.path.append(os.path.abspath(r"../"))
 
 try:
@@ -12,6 +14,8 @@ try:
     from utils import visualization_utils as vis_util
 except ModuleNotFoundError as e:
     print(str(e))
+
+ICON = Path(r'..\articles\atom.png')
 
 class FrameProcessor(QtCore.QObject):
 
@@ -34,16 +38,12 @@ class FrameProcessor(QtCore.QObject):
         self.PATH_TO_LABELS = os.path.join('data', 'mscoco_label_map.pbtxt')
 
         ''' Image variables'''
+        self.videoFilePath = None
         self.rgbImage = None
         self.convertToQtFormat = None
         self.p = None
         self.frame = None
         
-        ''' Labeling and visualization utilities Utilities '''
-
-        
-
- 
         
 
     def loadLabels(self, labelMapFile):
@@ -62,10 +62,26 @@ class FrameProcessor(QtCore.QObject):
 
     def setupVideoStream(self, videoFilePath):
 
-        if self.isNumber(videoFilePath)[0]: self.cap = cv2.VideoCapture(int(videoFilePath))
-        else: self.cap = cv2.VideoCapture(videoFilePath)
+        self.videoFilePath = videoFilePath
 
-        self.loadFrame()
+        if self.isNumber(videoFilePath)[0]: 
+
+            self.cap = cv2.VideoCapture(int(videoFilePath))
+
+        else:
+
+            if videoFilePath:
+                if Path(videoFilePath).is_file(): 
+                    self.cap = cv2.VideoCapture(videoFilePath)
+                    self.loadFrame()
+            else: 
+                videoFilePath = QtWidgets.QFileDialog.getOpenFileName(None, 'Select Video File ', r"../")
+                
+                if videoFilePath[0]: 
+                    self.videoFilePath = videoFilePath[0]
+                    self.cap = cv2.VideoCapture(self.videoFilePath)
+                    self.loadFrame()
+
 
     def runDetection(self, image, sess):
 
