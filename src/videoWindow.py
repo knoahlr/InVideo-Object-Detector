@@ -4,7 +4,7 @@ QLabel, QTextEdit, QLineEdit, QPushButton, QFrame
 
 from errorWindow import ErrorWindow
 from frameProcessor import FrameProcessor
-
+from defaultMenuBar import DefaultMenuBar
 import cv2
 
 import sys, os, time
@@ -117,6 +117,7 @@ class VideoWindow(QMainWindow):
     '''
     pixmapChanged = QtCore.pyqtSignal()
     loadLabels = QtCore.pyqtSignal(str)
+    
 
     def __init__(self):
 
@@ -144,7 +145,8 @@ class VideoWindow(QMainWindow):
         self.resize(1200, 800)
         self.setWindowTitle('Multi Model Video-Object Classifier')
         self.setWindowIcon(self.Icon)
-
+    
+        self.setMenuBar(DefaultMenuBar(self))
 
         ''' Setting window layout and central widget '''
         self.centralwidget = QtWidgets.QWidget()
@@ -273,6 +275,20 @@ class VideoWindow(QMainWindow):
         self.verticalLayout.addWidget(self.statsFrame)
 
         self.setCentralWidget(self.centralwidget)
+
+
+    def setWindowOpacity(self, value):
+
+        value = float(value)/100
+        self.setProperty("windowOpacity", value)
+    
+    def setInfo(self, info):
+
+        infoFont = info.font()
+        infoFont.setPointSize(10)
+        infoFont.setItalic(True)
+        infoFont.setFamily("Comic Sans MS")
+        info.setFont(infoFont)
 
     def populateLabelComboBox(self, labelsComboBox):
 
@@ -504,12 +520,5 @@ class VideoWindow(QMainWindow):
                 if 'frozen_inference_graph.pb' in file_name:
                     tar_file.extract(file, self.modelsDirPath)
 
-    def setInfo(self, info):
-
-        infoFont = info.font()
-        infoFont.setPointSize(10)
-        infoFont.setItalic(True)
-        infoFont.setFamily("Comic Sans MS")
-        info.setFont(infoFont)
 
 
