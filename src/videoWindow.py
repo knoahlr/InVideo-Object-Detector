@@ -108,7 +108,22 @@ class CheckableComboBox(QtWidgets.QComboBox):
             if item.checkState() == QtCore.Qt.Checked: filter[i] = item.text()
 
         self.editFilter.emit(filter)
-            
+
+
+class VideoFrame(QtWidgets.QGroupBox):
+
+    frameSizeChanged = QtCore.pyqtSignal()
+
+    def __init__(self, name):
+
+        super().__init__(name)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        self.setAlignment(QtCore.Qt.AlignTop)
+
+    def resizeEvent(self, event):
+
+        self.frameSizeChanged.emit()
+
 class VideoWindow(QMainWindow):
 
     '''
@@ -133,7 +148,7 @@ class VideoWindow(QMainWindow):
         self.image_processor = None
         self.error = None
         self.createModelsDir()
-        
+
 
         self.specificationsInfo1 = "Note: Module has to be loaded first."
         self.specificationsInfo2 = "Specify folder or link to model and labelMap text file"
@@ -155,7 +170,7 @@ class VideoWindow(QMainWindow):
 
         '''Box Frames'''
 
-        self.videoFrame = QGroupBox('Video')
+        self.videoFrame = VideoFrame('Video')
         
         self.statsFrame = QGroupBox('Statistics')
         self.inputsFrame = QGroupBox('Specifications')
@@ -164,9 +179,12 @@ class VideoWindow(QMainWindow):
         self.dataCategories = QGroupBox()
 
         ''' Frame Size Policy'''
-        self.videoFrame.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-  
-        self.videoFrame.setAlignment(QtCore.Qt.AlignTop)
+
+        self.videoFrame.frameSizeChanged.connect(self.changedVideoDimensions)
+
+
+        self.videoWidth = self.videoFrame.size().width()
+        self.videoHeight = self.videoFrame.size().height()
 
         ''' Frame layout '''
 
@@ -276,7 +294,15 @@ class VideoWindow(QMainWindow):
 
         self.setCentralWidget(self.centralwidget)
 
+    def changedVideoDimensions(self):
+        
+        
+        size = self.videoFrame.size()
 
+        self.videoHeight = size.height()
+        self.videoWidth = size.width()
+
+        
     def setWindowOpacity(self, value):
 
         value = float(value)/100
@@ -427,17 +453,25 @@ class VideoWindow(QMainWindow):
 
     def setImage(self, image, time):
 
-        size = self.videoFrame.size()
-        height = size.height()
-        width = size.width()
+  
 
-        image = image.scaled(height - 20, width - 20, QtCore.Qt.KeepAspectRatio)
-        # image = cv2.resize()
-        # print(height, width, image.size().height(), image.size().width())
+        img_height = image.shape[0]
+        img_width = image.shape[1]
+        FX =  "{0:.1}".format(self.videoWidth/img_width)
+        FY =  "{0:.1}".format(self.videoHeight/img_height)
+        # print(float(FX), float(FY))
+
+
+        self.image_processor.image = cv2.resize(image, (0,0), fx=float(FX), fy=float(FY), interpolation = cv2.INTER_CUBIC)
+        self.image_processor.rgbImage = cv2.cvtColor(self.image_processor.image, cv2.COLOR_BGR2RGB)
+        self.image_processor.p =  QtGui.QImage(self.image_processor.rgbImage.data, self.image_processor.rgbImage.shape[1], self.image_processor.rgbImage.shape[0], QtGui.QImage.Format_RGB888)
+
+        # image = image.scaled(height - 20, width - 20, QtCore.Qt.KeepAspectRatio)
+        
         self.modelTimeLineEdit.setText(str(time))
         
         scene = QtWidgets.QGraphicsScene()
-        pixmapItem = QtWidgets.QGraphicsPixmapItem(QtGui.QPixmap.fromImage(image))
+        pixmapItem = QtWidgets.QGraphicsPixmapItem(QtGui.QPixmap.fromImage(self.image_processor.p))
         scene.addItem(pixmapItem)
         
         self.videoWidget.setScene(scene)

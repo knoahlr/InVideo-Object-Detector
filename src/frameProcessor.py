@@ -20,7 +20,7 @@ ICON = Path(r'..\articles\atom.png')
 class FrameProcessor(QtCore.QObject):
 
 
-    changePixmap = QtCore.pyqtSignal(QtGui.QImage, float)
+    changePixmap = QtCore.pyqtSignal(np.ndarray, float)
     populateComboBox = QtCore.pyqtSignal(dict)
 
     def __init__(self, graphPath):
@@ -93,7 +93,7 @@ class FrameProcessor(QtCore.QObject):
         startTime = time.time()
         (boxes, scores, classes) = sess.run( [self.image_detector.boxes, self.image_detector.scores, self.image_detector.classes], 
         feed_dict={self.image_detector.image_tensor: image_expanded})
-        endTime =time.time()
+        
         boxes, scores, classes, num_detections = self.filter_boxes(0.2, np.squeeze(boxes), np.squeeze(scores), np.squeeze(classes).astype(np.int32), self.filter)
 
         #print('\n\nboxes\n\n', boxes, '\n\nscores\n\n', scores ,'\n\nclasses\n\n', classes)
@@ -111,6 +111,8 @@ class FrameProcessor(QtCore.QObject):
                 line_thickness=8)
         except IndexError:
             sys.exit()
+        
+        endTime =time.time()
 
         return image, endTime - startTime
 
@@ -119,11 +121,8 @@ class FrameProcessor(QtCore.QObject):
 
             ret, self.frame = self.cap.read()
             self.frame, time = self.runDetection(self.frame, self.image_detector.session)
-
-            self.rgbImage = cv2.cvtColor(self.frame, cv2.COLOR_BGR2RGB)
-            self.p =  QtGui.QImage(self.rgbImage.data, self.rgbImage.shape[1], self.rgbImage.shape[0], QtGui.QImage.Format_RGB888)
             
-            self.changePixmap.emit(self.p, time)
+            self.changePixmap.emit(self.frame, time)
 
             
     def filter_boxes(self, min_score, boxes, scores, classes, categories):
