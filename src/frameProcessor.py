@@ -67,6 +67,7 @@ class FrameProcessor(QtCore.QObject):
         if self.isNumber(videoFilePath)[0]: 
 
             self.cap = cv2.VideoCapture(int(videoFilePath))
+            self.loadFrame()
 
         else:
 
