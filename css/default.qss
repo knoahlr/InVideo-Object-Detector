@@ -1,0 +1,5 @@
+/* QPushButton{ background-color: white; color: cyan } */
+QGraphicView{background-color: black}
+
+VideoFrame {background-color: black}
+CheckableComboBox { color: cyan}

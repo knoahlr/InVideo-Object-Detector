@@ -2,6 +2,7 @@ import sys, time, ctypes, re, argparse
 from videoWindow import VideoWindow
 # from secondaryWindow import secondaryWindow
 
+from PyQt5 import QtCore
 from PyQt5.QtWidgets import QCommonStyle, QApplication
 # ICON = r'articles\atom.png'
 import os
@@ -23,6 +24,13 @@ if __name__ == "__main__":
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
     app = QApplication(sys.argv)
+
+    styleSheetFile = QtCore.QFile(r"../css/default.qss")
+    styleSheetFile.open(QtCore.QFile.ReadOnly)
+
+    styleSheetFileString = str(styleSheetFile.readAll(), "utf-8") 
+
+    app.setStyleSheet(styleSheetFileString)
 
     #app.setStyle(QCommonStyle())
 

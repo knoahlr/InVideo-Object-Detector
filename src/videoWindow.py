@@ -258,6 +258,7 @@ class VideoWindow(QMainWindow):
         ''' video Widget'''
 
         self.videoWidget = QtWidgets.QGraphicsView(self.videoFrame)
+        self.videoWidget.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.videoFrameLayout.addWidget(self.videoWidget)
 
 
@@ -452,8 +453,6 @@ class VideoWindow(QMainWindow):
     #ssd_mobilenet_v1_coco_11_06_2017
 
     def setImage(self, image, time):
-
-  
 
         img_height = image.shape[0]
         img_width = image.shape[1]
