@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
 
-    styleSheetFile = QtCore.QFile(r"../css/materialDesign.qss")
+    styleSheetFile = QtCore.QFile(r"..\css\materialDesign.qss")
     styleSheetFile.open(QtCore.QFile.ReadOnly)
     
     styleSheetFileString = str(styleSheetFile.readAll(), "utf-8") 
