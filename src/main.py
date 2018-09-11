@@ -16,8 +16,8 @@ if __name__ == "__main__":
     if not Path(r"../logs").is_dir():
         os.makedirs(r"../logs")
         
-    # logFile = open(Path(r"../logs/mainLog.log"), 'w')
-    # sys.stdout = logFile
+    logFile = open(Path(r"../logs/mainLog.log"), 'w')
+    sys.stdout = logFile
 
     myappid = 'mycompany.myproduct.subproduct.version' # arbitrary string
     ''' https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7/1552105#1552105 '''
@@ -25,10 +25,11 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
 
-    styleSheetFile = QtCore.QFile(r"../css/default.qss")
+    styleSheetFile = QtCore.QFile(r"../css/materialDesign.qss")
     styleSheetFile.open(QtCore.QFile.ReadOnly)
-
+    
     styleSheetFileString = str(styleSheetFile.readAll(), "utf-8") 
+    print(styleSheetFileString)
 
     app.setStyleSheet(styleSheetFileString)
 

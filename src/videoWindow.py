@@ -242,6 +242,7 @@ class VideoWindow(QMainWindow):
         ''' stat Fields '''
         self.modelTimeLabel = QLabel('Time')
         self.modelTimeLineEdit = QLineEdit(self.statsFrame)
+        self.modelTimeLineEdit.setAccessibleName("modelTimeLineEdit")
         self.modelTimePolicy = QtWidgets.QSizePolicy()
         self.modelTimePolicy.setControlType(QtWidgets.QSizePolicy.LineEdit)
         self.modelTimeLineEdit.setSizePolicy(self.modelTimePolicy)
@@ -382,8 +383,6 @@ class VideoWindow(QMainWindow):
         self.videoLineEdit.setText(self.image_processor.videoFilePath)
 
      
-
-
     def handleLoadModule(self):
 
         ''' 
@@ -446,16 +445,14 @@ class VideoWindow(QMainWindow):
                     self.modelLineEdit.clear()
                     self.error = ErrorWindow("Path provided is not a directory, a tarFile or a link:\nError:{0}".format(str(e)), self.Icon)
                     self.error.show()
-
-                
-
-                
+              
     #ssd_mobilenet_v1_coco_11_06_2017
 
     def setImage(self, image, time):
 
         img_height = image.shape[0]
         img_width = image.shape[1]
+
         FX =  "{0:.1}".format(self.videoWidth/img_width)
         FY =  "{0:.1}".format(self.videoHeight/img_height)
         # print(float(FX), float(FY))
@@ -467,7 +464,7 @@ class VideoWindow(QMainWindow):
 
         # image = image.scaled(height - 20, width - 20, QtCore.Qt.KeepAspectRatio)
         
-        self.modelTimeLineEdit.setText(str(time))
+        self.modelTimeLineEdit.setText("{0:.4}".format(time))
         
         scene = QtWidgets.QGraphicsScene()
         pixmapItem = QtWidgets.QGraphicsPixmapItem(QtGui.QPixmap.fromImage(self.image_processor.p))
