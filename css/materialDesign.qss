@@ -16,7 +16,7 @@ QTextEdit{
     background-color: #364e5a;
 }
 QLineEdit {
-
+	background-color: #2c3f49;
     border: 1px solid ;
     border-color: #364e5a;
     border-radius: 5px;
@@ -41,7 +41,7 @@ QGroupBox::title {
 QComboBox {
 
 	color: #546E7A;
-    background-color: transparent;
+    background-color: #2c3f49;
     border: 1px solid ;
     border-color: #364e5a;
     border-radius: 5px;
