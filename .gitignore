@@ -3,11 +3,42 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+<<<<<<< HEAD
+=======
+# OSX useful to ignore
+*.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+>>>>>>> 7cfafce6bfd7100b96c1519ba165edf0f35f5cb7
 # C extensions
 *.so
 
 # Distribution / packaging
 .Python
+<<<<<<< HEAD
+=======
+env/
+>>>>>>> 7cfafce6bfd7100b96c1519ba165edf0f35f5cb7
 build/
 develop-eggs/
 dist/
@@ -19,11 +50,17 @@ lib64/
 parts/
 sdist/
 var/
+<<<<<<< HEAD
 wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+=======
+*.egg-info/
+.installed.cfg
+*.egg
+>>>>>>> 7cfafce6bfd7100b96c1519ba165edf0f35f5cb7
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -43,7 +80,11 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+<<<<<<< HEAD
 *.cover
+=======
+*,cover
+>>>>>>> 7cfafce6bfd7100b96c1519ba165edf0f35f5cb7
 .hypothesis/
 .pytest_cache/
 
@@ -53,6 +94,7 @@ coverage.xml
 
 # Django stuff:
 *.log
+<<<<<<< HEAD
 local_settings.py
 db.sqlite3
 
@@ -62,10 +104,13 @@ instance/
 
 # Scrapy stuff:
 .scrapy
+=======
+>>>>>>> 7cfafce6bfd7100b96c1519ba165edf0f35f5cb7
 
 # Sphinx documentation
 docs/_build/
 
+<<<<<<< HEAD
 # PyBuilder
 target/
 
@@ -108,3 +153,24 @@ protos/__pycache__/
 /models
 # mypy
 .mypy_cache/
+=======
+# IntelliJ Idea family of suites
+.idea
+*.iml
+## File-based project format:
+*.ipr
+*.iws
+## mpeltonen/sbt-idea plugin
+.idea_modules/
+
+# PyBuilder
+target/
+
+# Cookiecutter
+output/
+python_boilerplate/
+cookiecutter-pypackage-env/
+
+# IDE settings
+.vscode/
+>>>>>>> 7cfafce6bfd7100b96c1519ba165edf0f35f5cb7
